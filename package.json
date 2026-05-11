@@ -1,0 +1,17 @@
+{
+  "name": "mo-djibconsulting-modern-site",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Site moderne MO-DJIB Consulting avec admin, blog, documents proteges et base SQLite.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --no-warnings server.js",
+    "dev": "node --watch --no-warnings server.js",
+    "reset-admin": "node --no-warnings scripts/reset-admin.js",
+    "test-admin": "node --no-warnings scripts/test-admin-login.js",
+    "prod": "node --no-warnings server.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}
