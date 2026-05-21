@@ -1,16 +1,40 @@
 <!doctype html>
-<html lang="fr">
+<html lang="fr" data-page="home">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="MO-DJIB Consulting accompagne les entreprises en hygiene alimentaire, HACCP, audit, certification et referencement.">
-    <title>MO-DJIB Consulting | HACCP, Audit & Certification</title>
-    <link rel="stylesheet" href="index.css?v=20260521-admin2">
+    <meta name="description" content="MO-DJIB Consulting, cabinet a Djibouti specialise en hygiene et securite alimentaire, HACCP, audit, certification, formation et referencement professionnel.">
+    <meta name="keywords" content="cabinet Djibouti, cabinet hygiene et securite Djibouti, HACCP Djibouti, audit hygiene Djibouti, certification alimentaire Djibouti, formation hygiene alimentaire Djibouti, MO-DJIB Consulting">
+    <meta name="robots" content="index,follow,max-image-preview:large">
+    <meta name="author" content="MO-DJIB Consulting">
+    <meta name="geo.region" content="DJ">
+    <meta name="geo.placename" content="Djibouti">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="fr_DJ">
+    <meta property="og:title" content="MO-DJIB Consulting | Cabinet Hygiene, HACCP & Audit a Djibouti">
+    <meta property="og:description" content="Cabinet professionnel a Djibouti pour hygiene alimentaire, securite, HACCP, audit, certification et accompagnement qualite.">
+    <meta property="og:url" content="https://modjibconsulting.online/">
+    <meta property="og:image" content="https://modjibconsulting.online/images/haccpcertificationaudit.jpg">
+    <meta name="twitter:card" content="summary_large_image">
+    <title>MO-DJIB Consulting | Cabinet Hygiene, HACCP & Audit a Djibouti</title>
+    <link rel="canonical" href="https://modjibconsulting.online/">
+    <link rel="alternate" hreflang="fr-DJ" href="https://modjibconsulting.online/">
+    <link rel="alternate" hreflang="en" href="https://modjibconsulting.online/en/">
+    <link rel="alternate" hreflang="ar" href="https://modjibconsulting.online/ar/">
+    <link rel="alternate" hreflang="x-default" href="https://modjibconsulting.online/">
+    <link rel="preload" as="image" href="/images/haccpcertificationaudit.jpg">
+    <link rel="stylesheet" href="/index.css?v=20260521-seo1">
   </head>
-  <body>
+  <body itemscope itemtype="https://schema.org/ProfessionalService">
+    <meta itemprop="name" content="MO-DJIB Consulting">
+    <meta itemprop="url" content="https://modjibconsulting.online/">
+    <meta itemprop="image" content="https://modjibconsulting.online/images/1697909151559.jpg">
+    <meta itemprop="areaServed" content="Djibouti">
+    <meta itemprop="email" content="modjibconsulting@gmail.com">
+    <meta itemprop="description" content="Cabinet a Djibouti specialise en hygiene alimentaire, HACCP, audit, certification et formation professionnelle.">
     <header class="site-header" data-header>
       <a class="brand" href="#top" aria-label="MO-DJIB Consulting accueil">
-        <img data-logo-image src="images/1697909151559.jpg" alt="Logo MO-DJIB Consulting">
+        <img data-logo-image src="/images/1697909151559.jpg" alt="Logo MO-DJIB Consulting">
         <span data-content="brandName">MO-DJIB Consulting</span>
       </a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="main-nav">
@@ -19,13 +43,21 @@
         <span></span>
       </button>
       <nav class="main-nav" id="main-nav">
-        <a href="#services">Services</a>
-        <a href="#certificats">Certificats</a>
-        <a href="#documents">Documents</a>
-        <a href="/galerie">Galerie</a>
-        <a href="#pricing">Pricing</a>
-        <a href="#blog">Actualites</a>
+        <a href="#services" data-i18n="navServices">Services</a>
+        <a href="#certificats" data-i18n="navCertificates">Certificats</a>
+        <a href="#documents" data-i18n="navDocuments">Documents</a>
+        <a href="/galerie" data-i18n="navGallery">Galerie</a>
+        <a href="#pricing" data-i18n="navPricing">Pricing</a>
+        <a href="#blog" data-i18n="navNews">Actualites</a>
       </nav>
+      <label class="language-switcher" for="language-select">
+        <span data-i18n="languageLabel">Langue</span>
+        <select id="language-select" data-language-select aria-label="Choisir la langue">
+          <option value="fr">FR</option>
+          <option value="en">EN</option>
+          <option value="ar">AR</option>
+        </select>
+      </label>
     </header>
 
     <main id="top">
@@ -38,8 +70,8 @@
             <p class="hero-subtitle" data-content="heroSubtitle">Votre partenaire qualite et securite alimentaire a Djibouti et dans la Corne de l'Afrique.</p>
             <p class="hero-body" data-content="heroBody">Nous accompagnons les restaurants, hotels, traiteurs, collectivites et industries alimentaires avec des formations, audits, plans d'action et referencements certifies.</p>
             <div class="hero-actions">
-              <a class="button primary" data-whatsapp href="https://wa.me/message/WZHC7CEMDMMXL1">Demander un devis</a>
-              <a class="button secondary" href="#certificats">Verifier un certificat</a>
+              <a class="button primary" data-whatsapp data-i18n="ctaQuote" href="https://wa.me/message/WZHC7CEMDMMXL1">Demander un devis</a>
+              <a class="button secondary" data-i18n="ctaVerify" href="#certificats">Verifier un certificat</a>
             </div>
           </div>
           <aside class="hero-panel" aria-label="Indicateurs MO-DJIB Consulting">
@@ -75,6 +107,28 @@
           <p data-content="servicesBody">Chaque mission combine terrain, documents, formation et controle pour rendre la conformite plus simple a piloter.</p>
         </div>
         <div class="service-grid" data-services></div>
+      </section>
+
+      <section class="section local-seo-section" id="cabinet-djibouti">
+        <div class="section-heading">
+          <p class="eyebrow" data-content="localSeoEyebrow">Cabinet professionnel a Djibouti</p>
+          <h2 data-content="localSeoTitle">Cabinet hygiene et securite a Djibouti pour entreprises, restaurants et hotels.</h2>
+          <p data-content="localSeoBody">MO-DJIB Consulting est un cabinet base a Djibouti qui accompagne les professionnels dans la securite alimentaire, l'hygiene, le referencement, l'audit HACCP, la formation des equipes et la certification documentaire. Notre objectif est d'aider chaque entreprise a prouver sa conformite, rassurer ses clients et piloter ses obligations avec des methodes claires.</p>
+        </div>
+        <div class="local-seo-grid">
+          <article>
+            <h3 data-i18n="localCard1Title">Services recherches a Djibouti</h3>
+            <p data-i18n="localCard1Body">Cabinet Djibouti, cabinet hygiene et securite a Djibouti, audit HACCP Djibouti, formation hygiene alimentaire et certification professionnelle.</p>
+          </article>
+          <article>
+            <h3 data-i18n="localCard2Title">Secteurs accompagnes</h3>
+            <p data-i18n="localCard2Body">Restaurants, hotels, traiteurs, collectivites, industries alimentaires, cuisines professionnelles et services de restauration.</p>
+          </article>
+          <article>
+            <h3 data-i18n="localCard3Title">Zone d'intervention</h3>
+            <p data-i18n="localCard3Body">Djibouti-ville, Republique de Djibouti et accompagnement des organisations dans la Corne de l'Afrique.</p>
+          </article>
+        </div>
       </section>
 
       <section class="section split" id="certificats">
@@ -188,6 +242,6 @@
       </article>
     </template>
 
-    <script src="app.js?v=20260521-admin2" defer></script>
+    <script src="/app.js?v=20260521-seo1" defer></script>
   </body>
 </html>

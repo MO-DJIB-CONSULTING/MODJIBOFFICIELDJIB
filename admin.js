@@ -10,10 +10,14 @@ let state = {
   documents: [],
   media: [],
   auditLogs: [],
+  analytics: {},
   stats: {}
 };
 
 const contentFields = [
+  ["seoTitle", "SEO - titre Google"],
+  ["seoDescription", "SEO - description Google", "textarea"],
+  ["seoKeywords", "SEO - mots-cles locaux", "textarea"],
   ["brandName", "Nom de marque"],
   ["logoImage", "Logo du site", "image"],
   ["heroImage", "Image principale hero", "image"],
@@ -27,6 +31,9 @@ const contentFields = [
   ["servicesEyebrow", "Sur-titre services"],
   ["servicesTitle", "Titre services"],
   ["servicesBody", "Texte services", "textarea"],
+  ["localSeoEyebrow", "SEO local - sur-titre"],
+  ["localSeoTitle", "SEO local - titre"],
+  ["localSeoBody", "SEO local - texte", "textarea"],
   ["certificatesEyebrow", "Sur-titre certificats"],
   ["certificatesTitle", "Titre certificats"],
   ["documentsEyebrow", "Sur-titre documents"],
@@ -154,13 +161,14 @@ function renderStats() {
     ["services", "Services"],
     ["pricing", "Tarifs"],
     ["gallery", "Galerie"],
-    ["media", "Images"]
+    ["media", "Images"],
+    ["visitors", "Visiteurs"]
   ];
   if (root) {
     root.innerHTML = labels.map(([key, label]) => `
       <article class="stat-card">
         <span>${label}</span>
-        <strong>${state.stats[key] ?? 0}</strong>
+        <strong>${key === "visitors" ? (state.analytics?.totals?.visitors ?? 0) : (state.stats[key] ?? 0)}</strong>
       </article>
     `).join("");
   }
@@ -171,6 +179,7 @@ function renderStats() {
       ["content", "Personnaliser"],
       ["media", "Ajouter media"],
       ["gallery", "Galerie"],
+      ["analytics", "Analytics"],
       ["blog", "Actualite"],
       ["companies", "Societe"],
       ["documents", "Document protege"]
@@ -622,8 +631,71 @@ function renderAuditLogs() {
   `).join("");
 }
 
+function metricRows(items, empty = "Aucune donnee") {
+  if (!items?.length) return `<div class="empty-admin-state">${empty}</div>`;
+  const max = Math.max(...items.map((item) => Number(item.count || 0)), 1);
+  return items.map((item) => {
+    const width = Math.max(4, Math.round((Number(item.count || 0) / max) * 100));
+    return `
+      <article class="metric-row">
+        <div>
+          <strong>${escapeHtml(item.label || "Inconnu")}</strong>
+          <span>${escapeHtml(item.count || 0)} vue(s)</span>
+        </div>
+        <span class="metric-bar"><i style="width:${width}%"></i></span>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderAnalytics() {
+  const analytics = state.analytics || {};
+  const cards = document.querySelector("[data-analytics-cards]");
+  if (!cards) return;
+  cards.innerHTML = [
+    ["Visiteurs 30 jours", analytics.totals?.visitors || 0],
+    ["Pages vues 30 jours", analytics.totals?.pageViews || 0],
+    ["Sessions 30 jours", analytics.totals?.sessions || 0],
+    ["Aujourd'hui", `${analytics.today?.visitors || 0} visiteur(s)`]
+  ].map(([label, value]) => `
+    <article class="stat-card">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </article>
+  `).join("");
+
+  const sources = document.querySelector("[data-analytics-sources]");
+  const pages = document.querySelector("[data-analytics-pages]");
+  const devices = document.querySelector("[data-analytics-devices]");
+  const recent = document.querySelector("[data-analytics-recent]");
+  if (sources) sources.innerHTML = metricRows(analytics.sources);
+  if (pages) pages.innerHTML = metricRows(analytics.topPages);
+  if (devices) {
+    devices.innerHTML = `
+      <h3>Langues</h3>
+      ${metricRows(analytics.languages)}
+      <h3>Appareils</h3>
+      ${metricRows(analytics.devices)}
+    `;
+  }
+  if (recent) {
+    recent.innerHTML = analytics.recent?.length
+      ? analytics.recent.map((item) => `
+        <article class="metric-row compact">
+          <div>
+            <strong>${escapeHtml(item.path || "/")}</strong>
+            <span>${escapeHtml(item.source || "Direct")} - ${escapeHtml(item.device || "desktop")} - ${escapeHtml(item.language || "fr")}</span>
+          </div>
+          <time>${escapeHtml(formatAdminDate(item.created_at))}</time>
+        </article>
+      `).join("")
+      : '<div class="empty-admin-state">Aucune visite recente.</div>';
+  }
+}
+
 function renderAll() {
   renderStats();
+  renderAnalytics();
   renderContentForm();
   renderMediaList();
   renderGalleryList();
@@ -648,6 +720,7 @@ async function refresh() {
     documents: payload.documents || [],
     media: payload.media || [],
     auditLogs: payload.auditLogs || [],
+    analytics: payload.analytics || {},
     stats: payload.stats || {}
   };
   document.querySelectorAll("[data-admin-logo]").forEach((node) => {
@@ -686,7 +759,7 @@ function applyAdminSearch() {
   const panel = document.querySelector("[data-panel].active");
   if (!input || !panel) return;
   const query = input.value.trim().toLowerCase();
-  const items = panel.querySelectorAll(".list-item, .media-card, .gallery-admin-card, .stat-card, .status-card");
+  const items = panel.querySelectorAll(".list-item, .media-card, .gallery-admin-card, .stat-card, .status-card, .metric-row");
   items.forEach((item) => {
     item.classList.toggle("is-filtered-out", Boolean(query) && !item.textContent.toLowerCase().includes(query));
   });
@@ -696,6 +769,23 @@ function bindAdminSearch() {
   const input = document.querySelector("[data-admin-search]");
   if (!input) return;
   input.addEventListener("input", applyAdminSearch);
+}
+
+function bindDashboardActions() {
+  document.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-refresh-dashboard]");
+    if (!button) return;
+    button.disabled = true;
+    notify("Actualisation des statistiques...", "info");
+    try {
+      await refresh();
+      notify("Statistiques actualisees.", "success");
+    } catch (error) {
+      notify(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
 }
 
 function bindLogin() {
@@ -985,6 +1075,18 @@ function bindPricing() {
 }
 
 function bindGallery() {
+  document.querySelector("[data-prefill-youtube]")?.addEventListener("click", () => {
+    const form = document.querySelector("[data-gallery-form]");
+    form.elements.id.value = "";
+    form.elements.title.value = "Video MO-DJIB Consulting";
+    form.elements.sort_order.value = "1";
+    form.elements.media_type.value = "youtube";
+    form.elements.status.value = "published";
+    form.elements.image.value = "https://www.youtube.com/watch?v=0wqLRgn8UWM";
+    form.elements.description.value = "Presentation video de MO-DJIB Consulting, hygiene, audit, certification et accompagnement professionnel a Djibouti.";
+    document.querySelector("[data-gallery-form-title]").textContent = "Ajouter la video MO-DJIB YouTube";
+  });
+
   document.querySelector("[data-gallery-form]").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -1281,6 +1383,7 @@ function bindDocuments() {
 async function boot() {
   bindTabs();
   bindAdminSearch();
+  bindDashboardActions();
   bindLogin();
   bindPasswordReset();
   bindContent();

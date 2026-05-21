@@ -2,6 +2,9 @@ User-agent: *
 Disallow: /admin
 Disallow: /api/admin
 Disallow: /private-data
+Disallow: /data
+Disallow: /ftp-deploy
 Allow: /
 
+Host: https://modjibconsulting.online
 Sitemap: https://modjibconsulting.online/sitemap.xml

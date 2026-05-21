@@ -1,11 +1,64 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://modjibconsulting.online/</loc>
+    <lastmod>2026-05-21</lastmod>
+    <changefreq>weekly</changefreq>
     <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="fr-DJ" href="https://modjibconsulting.online/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://modjibconsulting.online/en/"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://modjibconsulting.online/ar/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://modjibconsulting.online/"/>
+  </url>
+  <url>
+    <loc>https://modjibconsulting.online/en/</loc>
+    <lastmod>2026-05-21</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="fr-DJ" href="https://modjibconsulting.online/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://modjibconsulting.online/en/"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://modjibconsulting.online/ar/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://modjibconsulting.online/"/>
+  </url>
+  <url>
+    <loc>https://modjibconsulting.online/ar/</loc>
+    <lastmod>2026-05-21</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="fr-DJ" href="https://modjibconsulting.online/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://modjibconsulting.online/en/"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://modjibconsulting.online/ar/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://modjibconsulting.online/"/>
   </url>
   <url>
     <loc>https://modjibconsulting.online/galerie</loc>
-    <priority>0.7</priority>
+    <lastmod>2026-05-21</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.75</priority>
+    <xhtml:link rel="alternate" hreflang="fr-DJ" href="https://modjibconsulting.online/galerie"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://modjibconsulting.online/en/galerie"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://modjibconsulting.online/ar/galerie"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://modjibconsulting.online/galerie"/>
+  </url>
+  <url>
+    <loc>https://modjibconsulting.online/en/galerie</loc>
+    <lastmod>2026-05-21</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.65</priority>
+    <xhtml:link rel="alternate" hreflang="fr-DJ" href="https://modjibconsulting.online/galerie"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://modjibconsulting.online/en/galerie"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://modjibconsulting.online/ar/galerie"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://modjibconsulting.online/galerie"/>
+  </url>
+  <url>
+    <loc>https://modjibconsulting.online/ar/galerie</loc>
+    <lastmod>2026-05-21</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.65</priority>
+    <xhtml:link rel="alternate" hreflang="fr-DJ" href="https://modjibconsulting.online/galerie"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://modjibconsulting.online/en/galerie"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://modjibconsulting.online/ar/galerie"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://modjibconsulting.online/galerie"/>
   </url>
 </urlset>

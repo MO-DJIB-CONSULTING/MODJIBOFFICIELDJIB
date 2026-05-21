@@ -110,6 +110,29 @@ select {
   background: var(--mint);
 }
 
+.language-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 0.82rem;
+}
+
+.language-switcher select {
+  width: auto;
+  min-height: 38px;
+  padding: 7px 28px 7px 10px;
+  color: inherit;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.site-header.is-scrolled .language-switcher select {
+  color: var(--ink);
+  background: var(--white);
+  border-color: var(--line);
+}
+
 .nav-toggle {
   display: none;
   width: 42px;
@@ -433,6 +456,40 @@ h3 {
   height: 8px;
   border-radius: 50%;
   background: var(--gold);
+}
+
+.local-seo-section {
+  width: 100%;
+  max-width: none;
+  padding-left: max(18px, calc((100% - 1180px) / 2));
+  padding-right: max(18px, calc((100% - 1180px) / 2));
+  background: #eef6f2;
+}
+
+.local-seo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.local-seo-grid article {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: 0 8px 24px rgba(20, 35, 31, 0.06);
+}
+
+.local-seo-grid p {
+  color: var(--muted);
+}
+
+.is-rtl {
+  direction: rtl;
+}
+
+.is-rtl .hero-media {
+  transform: scale(1.02);
 }
 
 .split {
@@ -942,7 +999,8 @@ select:focus {
   .gallery-grid,
   .gallery-grid-full,
   .document-grid,
-  .process-grid {
+  .process-grid,
+  .local-seo-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -990,7 +1048,8 @@ select:focus {
   .gallery-grid,
   .gallery-grid-full,
   .document-grid,
-  .process-grid {
+  .process-grid,
+  .local-seo-grid {
     grid-template-columns: 1fr;
   }
 

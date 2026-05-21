@@ -172,6 +172,8 @@ function securityHeaders(extra = {}) {
     "X-Frame-Options": "SAMEORIGIN",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Cross-Origin-Resource-Policy": "same-origin",
+    "X-Permitted-Cross-Domain-Policies": "none",
     ...extra
   };
 }
@@ -377,6 +379,25 @@ function initSchema() {
       ip TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS analytics_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_type TEXT NOT NULL DEFAULT 'page_view',
+      visitor_id TEXT NOT NULL DEFAULT '',
+      session_id TEXT NOT NULL DEFAULT '',
+      path TEXT NOT NULL DEFAULT '/',
+      title TEXT NOT NULL DEFAULT '',
+      referrer TEXT NOT NULL DEFAULT '',
+      source TEXT NOT NULL DEFAULT 'Direct',
+      language TEXT NOT NULL DEFAULT 'fr',
+      device TEXT NOT NULL DEFAULT 'desktop',
+      viewport TEXT NOT NULL DEFAULT '',
+      user_agent TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics_events(created_at);
+    CREATE INDEX IF NOT EXISTS idx_analytics_path ON analytics_events(path);
   `);
 }
 
@@ -633,12 +654,18 @@ ensureMissingContent();
 
 function ensureMissingContent() {
   const defaults = {
+    seoTitle: "MO-DJIB Consulting | Cabinet Hygiene, HACCP & Audit a Djibouti",
+    seoDescription: "MO-DJIB Consulting, cabinet a Djibouti specialise en hygiene et securite alimentaire, HACCP, audit, certification, formation et referencement professionnel.",
+    seoKeywords: "cabinet Djibouti, cabinet hygiene et securite Djibouti, HACCP Djibouti, audit hygiene Djibouti, certification alimentaire Djibouti",
     servicesEyebrow: "Expertise",
     logoImage: "images/1697909151559.jpg",
     heroImage: "images/haccpcertificationaudit.jpg",
     contactImage: "images/travail-collectif.jpg",
     servicesTitle: "Un accompagnement qualite clair, mesurable et suivi.",
     servicesBody: "Chaque mission combine terrain, documents, formation et controle pour rendre la conformite plus simple a piloter.",
+    localSeoEyebrow: "Cabinet professionnel a Djibouti",
+    localSeoTitle: "Cabinet hygiene et securite a Djibouti pour entreprises, restaurants et hotels.",
+    localSeoBody: "MO-DJIB Consulting est un cabinet base a Djibouti qui accompagne les professionnels dans la securite alimentaire, l'hygiene, le referencement, l'audit HACCP, la formation des equipes et la certification documentaire.",
     certificatesEyebrow: "Base certifiee",
     certificatesTitle: "Consulter les societes referencees.",
     documentsEyebrow: "Data base securisee",
@@ -756,6 +783,106 @@ function getAuditLogs(limit = 80) {
     }));
 }
 
+function analyticsSource(referrer) {
+  const value = normalizeText(referrer);
+  if (!value) return "Direct";
+  try {
+    const host = new URL(value).hostname.replace(/^www\./, "").toLowerCase();
+    if (host.includes("google")) return "Google";
+    if (host.includes("bing")) return "Bing";
+    if (host.includes("facebook") || host.includes("instagram")) return "Meta";
+    if (host.includes("linkedin")) return "LinkedIn";
+    if (host.includes("wa.me") || host.includes("whatsapp")) return "WhatsApp";
+    if (host.includes("modjibconsulting.online")) return "Interne";
+    return host.slice(0, 60);
+  } catch {
+    return "Direct";
+  }
+}
+
+function analyticsDevice(userAgent, viewport) {
+  const agent = normalizeText(userAgent).toLowerCase();
+  const width = Number(normalizeText(viewport).split("x")[0] || 0);
+  if (/mobile|android|iphone|ipod/.test(agent) || (width > 0 && width < 700)) return "mobile";
+  if (/ipad|tablet/.test(agent) || (width >= 700 && width < 1050)) return "tablet";
+  return "desktop";
+}
+
+function recordAnalyticsEvent(req, body) {
+  const eventType = ["page_view", "chat_open", "certificate_search"].includes(body.eventType) ? body.eventType : "page_view";
+  const visitorId = crypto.createHash("sha256").update(normalizeText(body.visitorId).slice(0, 160) || requestIp(req)).digest("hex").slice(0, 32);
+  const sessionId = crypto.createHash("sha256").update(normalizeText(body.sessionId).slice(0, 160) || visitorId).digest("hex").slice(0, 32);
+  const pathName = normalizeText(body.path || "/").replace(/^https?:\/\/[^/]+/i, "").slice(0, 180) || "/";
+  const referrer = normalizeText(body.referrer).slice(0, 240);
+  const userAgent = normalizeText(req.headers["user-agent"]).slice(0, 240);
+  const viewport = normalizeText(body.viewport).slice(0, 24);
+  db.prepare(`
+    INSERT INTO analytics_events (event_type, visitor_id, session_id, path, title, referrer, source, language, device, viewport, user_agent, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    eventType,
+    visitorId,
+    sessionId,
+    pathName,
+    normalizeText(body.title).slice(0, 180),
+    referrer,
+    analyticsSource(referrer),
+    normalizeText(body.language || "fr").slice(0, 12),
+    analyticsDevice(userAgent, viewport),
+    viewport,
+    userAgent,
+    nowIso()
+  );
+}
+
+function groupedAnalytics(field, cutoff, limit = 8) {
+  const allowed = new Set(["path", "source", "language", "device"]);
+  if (!allowed.has(field)) return [];
+  return db.prepare(`
+    SELECT ${field} AS label, COUNT(*) AS count
+    FROM analytics_events
+    WHERE created_at >= ? AND event_type = 'page_view'
+    GROUP BY ${field}
+    ORDER BY count DESC
+    LIMIT ?
+  `).all(cutoff, limit);
+}
+
+function analyticsSummary() {
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const today = new Date().toISOString().slice(0, 10);
+  const totals = db.prepare(`
+    SELECT
+      COUNT(*) AS pageViews,
+      COUNT(DISTINCT visitor_id) AS visitors,
+      COUNT(DISTINCT session_id) AS sessions
+    FROM analytics_events
+    WHERE created_at >= ? AND event_type = 'page_view'
+  `).get(cutoff);
+  const todayTotals = db.prepare(`
+    SELECT COUNT(*) AS pageViews, COUNT(DISTINCT visitor_id) AS visitors
+    FROM analytics_events
+    WHERE substr(created_at, 1, 10) = ? AND event_type = 'page_view'
+  `).get(today);
+  const recent = db.prepare(`
+    SELECT path, source, language, device, created_at
+    FROM analytics_events
+    WHERE event_type = 'page_view'
+    ORDER BY created_at DESC, id DESC
+    LIMIT 20
+  `).all();
+  return {
+    rangeDays: 30,
+    totals,
+    today: todayTotals,
+    topPages: groupedAnalytics("path", cutoff),
+    sources: groupedAnalytics("source", cutoff),
+    languages: groupedAnalytics("language", cutoff),
+    devices: groupedAnalytics("device", cutoff),
+    recent
+  };
+}
+
 function logAudit(req, action, target = "", details = {}, actor = "") {
   const safeDetails = { ...details };
   for (const key of ["password", "currentPassword", "newPassword", "code", "base64"]) {
@@ -783,7 +910,8 @@ function exportPayload() {
     companies: getCompanies({ limit: 5000 }),
     documents: getDocuments(),
     media: getMediaFiles(),
-    auditLogs: getAuditLogs(250)
+    auditLogs: getAuditLogs(250),
+    analytics: analyticsSummary()
   };
 }
 
@@ -879,6 +1007,7 @@ function mimeType(filePath) {
     ".css": "text/css; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
     ".json": "application/json; charset=utf-8",
+    ".xml": "application/xml; charset=utf-8",
     ".png": "image/png",
     ".jpg": "image/jpeg",
       ".jpeg": "image/jpeg",
@@ -898,6 +1027,8 @@ function serveStatic(req, res, pathname) {
   let target = pathname === "/" ? "/index.html" : pathname;
   if (target === "/admin") target = "/admin.html";
   if (target === "/galerie" || target === "/gallery") target = "/gallery.html";
+  if (/^\/(en|ar)\/?$/.test(target)) target = "/index.html";
+  if (/^\/(en|ar)\/(galerie|gallery)\/?$/.test(target)) target = "/gallery.html";
 
   let decoded;
   try {
@@ -1234,7 +1365,8 @@ async function handleAdminApi(req, res, segments) {
       companies: getCompanies({ limit: 500 }),
       documents: getDocuments(),
       media: getMediaFiles(),
-      auditLogs: getAuditLogs()
+      auditLogs: getAuditLogs(),
+      analytics: analyticsSummary()
     });
     return true;
   }
@@ -1855,6 +1987,23 @@ async function handleApi(req, res, url) {
 
     if (segments[0] === "api" && segments[1] === "public") {
       if (await handlePublicApi(req, res, url, segments.slice(1))) return;
+    }
+
+    if (segments[0] === "api" && segments[1] === "analytics" && segments[2] === "visit" && req.method === "POST") {
+      const badOrigin = untrustedOrigin(req);
+      if (badOrigin) {
+        sendError(res, 403, "Origine non autorisee.");
+        return;
+      }
+      const limit = checkRateLimit(req, "analytics", 120, 60 * 1000);
+      if (!limit.ok) {
+        sendError(res, 429, "Trop de requetes.", { "Retry-After": String(limit.retryAfter) });
+        return;
+      }
+      const body = await readJson(req, 16 * 1024);
+      recordAnalyticsEvent(req, body);
+      sendJson(res, 200, { ok: true }, { "Cache-Control": "no-store" });
+      return;
     }
 
     if (segments[0] === "api" && segments[1] === "companies" && segments[2] === "search") {

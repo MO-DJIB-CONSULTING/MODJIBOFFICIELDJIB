@@ -5,16 +5,27 @@ RewriteCond %{HTTPS} !=on
 RewriteCond %{HTTP:X-Forwarded-Proto} !https [NC]
 RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
 
+RewriteCond %{THE_REQUEST} \s/+index\.html[?\s] [NC]
+RewriteRule ^index\.html$ / [R=301,L]
+RewriteCond %{THE_REQUEST} \s/+gallery\.html[?\s] [NC]
+RewriteRule ^gallery\.html$ /galerie [R=301,L]
+RewriteCond %{THE_REQUEST} \s/+(Accueil|Nos-Services|FORMER|AUDITER|Accompagnement|ACCOMPAGNER|Notre-Pack-Hygi%C3%A8ne|Page-1|Qui-sommes-nous|thank-you-page)\.html[?\s] [NC]
+RewriteRule ^(Accueil|Nos-Services|FORMER|AUDITER|Accompagnement|ACCOMPAGNER|Notre-Pack-Hygi%C3%A8ne|Page-1|Qui-sommes-nous|thank-you-page)\.html$ / [R=301,L,NE]
+
 RewriteRule ^api/?(.*)$ api/index.php?path=$1 [QSA,L]
 RewriteRule ^admin/?$ admin.html [L]
 RewriteRule ^galerie/?$ gallery.html [L]
 RewriteRule ^gallery/?$ gallery.html [L]
+RewriteRule ^(en|ar)/?$ index.html [L]
+RewriteRule ^(en|ar)/(galerie|gallery)/?$ gallery.html [L]
 
 <IfModule mod_headers.c>
   Header always set X-Content-Type-Options "nosniff"
   Header always set X-Frame-Options "SAMEORIGIN"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  Header always set Cross-Origin-Resource-Policy "same-origin"
+  Header always set X-Permitted-Cross-Domain-Policies "none"
   Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
   Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: data:; frame-src https://www.youtube.com https://www.youtube-nocookie.com; connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'; upgrade-insecure-requests"
 </IfModule>

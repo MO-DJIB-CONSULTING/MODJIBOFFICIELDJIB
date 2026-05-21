@@ -5,6 +5,7 @@ const DATA_DIR = __DIR__ . '/../private-data';
 const DB_FILE = DATA_DIR . '/database.json';
 const TOKENS_FILE = DATA_DIR . '/tokens.json';
 const RESET_FILE = DATA_DIR . '/password-reset.json';
+const ANALYTICS_FILE = DATA_DIR . '/analytics.json';
 const DOCUMENT_DIR = DATA_DIR . '/documents';
 const MEDIA_DIR = __DIR__ . '/../images/admin-uploads';
 const SESSION_COOKIE = 'mo_admin_php';
@@ -73,6 +74,12 @@ function route_request(string $method, array $segments): void {
         }
     }
 
+    if (($segments[0] ?? '') === 'analytics' && ($segments[1] ?? '') === 'visit' && $method === 'POST') {
+        check_origin();
+        record_analytics_event(read_json(16384));
+        send_json(200, ['ok' => true]);
+    }
+
     if (($segments[0] ?? '') === 'companies' && ($segments[1] ?? '') === 'search' && $method === 'GET') {
         send_json(200, ['companies' => search_companies((string)($_GET['q'] ?? ''))]);
     }
@@ -95,6 +102,8 @@ function security_headers(): void {
     header("X-Frame-Options: SAMEORIGIN");
     header("Referrer-Policy: strict-origin-when-cross-origin");
     header("Permissions-Policy: camera=(), microphone=(), geolocation=()");
+    header("Cross-Origin-Resource-Policy: same-origin");
+    header("X-Permitted-Cross-Domain-Policies: none");
     header("Strict-Transport-Security: max-age=31536000; includeSubDomains");
 }
 
@@ -297,6 +306,114 @@ function search_companies(string $query): array {
     }), 0, 50));
 }
 
+function analytics_source(string $referrer): string {
+    $value = text_value($referrer);
+    if ($value === '') {
+        return 'Direct';
+    }
+    $host = strtolower((string)(parse_url($value, PHP_URL_HOST) ?: ''));
+    $host = preg_replace('/^www\./', '', $host);
+    if ($host === '') {
+        return 'Direct';
+    }
+    if (str_contains($host, 'google')) return 'Google';
+    if (str_contains($host, 'bing')) return 'Bing';
+    if (str_contains($host, 'facebook') || str_contains($host, 'instagram')) return 'Meta';
+    if (str_contains($host, 'linkedin')) return 'LinkedIn';
+    if (str_contains($host, 'wa.me') || str_contains($host, 'whatsapp')) return 'WhatsApp';
+    if (str_contains($host, 'modjibconsulting.online')) return 'Interne';
+    return substr($host, 0, 60);
+}
+
+function analytics_device(string $userAgent, string $viewport): string {
+    $agent = strtolower($userAgent);
+    $width = (int)explode('x', $viewport)[0];
+    if (preg_match('/mobile|android|iphone|ipod/', $agent) || ($width > 0 && $width < 700)) return 'mobile';
+    if (preg_match('/ipad|tablet/', $agent) || ($width >= 700 && $width < 1050)) return 'tablet';
+    return 'desktop';
+}
+
+function load_analytics(): array {
+    if (!file_exists(ANALYTICS_FILE)) {
+        return [];
+    }
+    $data = json_decode((string)file_get_contents(ANALYTICS_FILE), true);
+    return is_array($data) ? $data : [];
+}
+
+function save_analytics(array $events): void {
+    $events = array_slice($events, -5000);
+    file_put_contents(ANALYTICS_FILE, json_encode($events, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX);
+}
+
+function record_analytics_event(array $body): void {
+    $events = load_analytics();
+    $visitorSeed = text_value($body['visitorId'] ?? ($_SERVER['REMOTE_ADDR'] ?? 'visitor'));
+    $sessionSeed = text_value($body['sessionId'] ?? $visitorSeed);
+    $referrer = substr(text_value($body['referrer'] ?? ''), 0, 240);
+    $viewport = substr(text_value($body['viewport'] ?? ''), 0, 24);
+    $userAgent = substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 240);
+    $path = preg_replace('/^https?:\/\/[^\/]+/i', '', text_value($body['path'] ?? '/'));
+    $events[] = [
+        'id' => count($events) + 1,
+        'event_type' => in_array($body['eventType'] ?? '', ['page_view', 'chat_open', 'certificate_search'], true) ? $body['eventType'] : 'page_view',
+        'visitor_id' => substr(hash('sha256', $visitorSeed), 0, 32),
+        'session_id' => substr(hash('sha256', $sessionSeed), 0, 32),
+        'path' => substr($path !== '' ? $path : '/', 0, 180),
+        'title' => substr(text_value($body['title'] ?? ''), 0, 180),
+        'referrer' => $referrer,
+        'source' => analytics_source($referrer),
+        'language' => substr(text_value($body['language'] ?? 'fr'), 0, 12),
+        'device' => analytics_device($userAgent, $viewport),
+        'viewport' => $viewport,
+        'created_at' => now_iso()
+    ];
+    save_analytics($events);
+}
+
+function count_group(array $events, string $field, int $limit = 8): array {
+    $counts = [];
+    foreach ($events as $event) {
+        if (($event['event_type'] ?? 'page_view') !== 'page_view') continue;
+        $label = (string)($event[$field] ?? '');
+        if ($label === '') $label = 'Inconnu';
+        $counts[$label] = ($counts[$label] ?? 0) + 1;
+    }
+    arsort($counts);
+    $items = [];
+    foreach (array_slice($counts, 0, $limit, true) as $label => $count) {
+        $items[] = ['label' => $label, 'count' => $count];
+    }
+    return $items;
+}
+
+function analytics_summary(): array {
+    $cutoff = time() - 30 * 86400;
+    $events = array_values(array_filter(load_analytics(), function ($event) use ($cutoff) {
+        return strtotime((string)($event['created_at'] ?? '')) >= $cutoff;
+    }));
+    $pageViews = array_values(array_filter($events, fn($event) => ($event['event_type'] ?? 'page_view') === 'page_view'));
+    $today = gmdate('Y-m-d');
+    $todayViews = array_values(array_filter($pageViews, fn($event) => substr((string)($event['created_at'] ?? ''), 0, 10) === $today));
+    return [
+        'rangeDays' => 30,
+        'totals' => [
+            'pageViews' => count($pageViews),
+            'visitors' => count(array_unique(array_column($pageViews, 'visitor_id'))),
+            'sessions' => count(array_unique(array_column($pageViews, 'session_id')))
+        ],
+        'today' => [
+            'pageViews' => count($todayViews),
+            'visitors' => count(array_unique(array_column($todayViews, 'visitor_id')))
+        ],
+        'topPages' => count_group($pageViews, 'path'),
+        'sources' => count_group($pageViews, 'source'),
+        'languages' => count_group($pageViews, 'language'),
+        'devices' => count_group($pageViews, 'device'),
+        'recent' => array_slice(array_reverse($pageViews), 0, 20)
+    ];
+}
+
 function handle_public_documents(string $method, array $segments): void {
     if ($method === 'GET' && count($segments) === 1) {
         send_json(200, ['documents' => public_documents(load_db()['documents'] ?? [])]);
@@ -478,7 +595,8 @@ function dashboard_payload(array $db, array $admin): array {
         'companies' => $db['companies'] ?? [],
         'documents' => array_map('public_document', $db['documents'] ?? []),
         'media' => media_files(),
-        'auditLogs' => array_slice($db['auditLogs'] ?? [], 0, 80)
+        'auditLogs' => array_slice($db['auditLogs'] ?? [], 0, 80),
+        'analytics' => analytics_summary()
     ];
 }
 
@@ -624,6 +742,8 @@ function media_files(): array {
 }
 
 function media_type(string $file): string {
+    $lower = strtolower($file);
+    if (str_contains($lower, 'youtube.com') || str_contains($lower, 'youtu.be')) return 'youtube';
     $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
     return in_array($ext, ['mp4', 'webm', 'ogg', 'mov'], true) ? 'video' : 'image';
 }
@@ -728,12 +848,16 @@ function build_item(string $resource, array $body, ?array $current): array {
     }
     if ($resource === 'gallery') {
         $image = text_value($body['image'] ?? $current['image'] ?? '');
+        $type = text_value($body['media_type'] ?? media_type($image)) ?: media_type($image);
+        if (!in_array($type, ['image', 'video', 'youtube'], true)) {
+            $type = media_type($image);
+        }
         return [
             'id' => $current['id'] ?? null,
             'title' => text_value($body['title'] ?? $current['title'] ?? ''),
             'description' => text_value($body['description'] ?? ''),
             'image' => $image,
-            'media_type' => text_value($body['media_type'] ?? media_type($image)) ?: 'image',
+            'media_type' => $type,
             'status' => ($body['status'] ?? '') === 'draft' ? 'draft' : 'published',
             'sort_order' => (int)($body['sort_order'] ?? 0),
             'created_at' => $current['created_at'] ?? $stamp,

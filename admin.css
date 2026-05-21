@@ -410,6 +410,14 @@ select:focus {
   padding: 22px;
 }
 
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
 .status-grid {
   display: grid;
   gap: 12px;
@@ -622,6 +630,79 @@ select:focus {
   margin-top: 18px;
 }
 
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.analytics-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.metric-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.metric-list h3 {
+  margin-top: 10px;
+  font-size: 0.95rem;
+}
+
+.metric-row {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+}
+
+.metric-row.compact {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.metric-row div {
+  display: grid;
+  gap: 4px;
+}
+
+.metric-row span,
+.metric-row time {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.metric-bar {
+  display: block;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--mint);
+}
+
+.metric-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--teal);
+}
+
+.empty-admin-state {
+  padding: 14px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  background: var(--paper);
+}
+
 .audit-list {
   display: grid;
   gap: 10px;
@@ -705,6 +786,8 @@ select:focus {
 
   .tabs,
   .stat-grid,
+  .analytics-grid,
+  .analytics-layout,
   .grid-form {
     grid-template-columns: 1fr;
   }

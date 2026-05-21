@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex,nofollow,noarchive">
     <title>Admin | MO-DJIB Consulting</title>
-    <link rel="stylesheet" href="admin.css?v=20260521-admin2">
+    <link rel="stylesheet" href="admin.css?v=20260521-seo1">
   </head>
   <body>
     <main class="login-screen" data-login-screen>
@@ -59,6 +59,7 @@
         </a>
         <nav class="tabs" data-tabs>
           <button class="active" type="button" data-tab="overview">Apercu</button>
+          <button type="button" data-tab="analytics">Analytics</button>
           <button type="button" data-tab="content">Contenu</button>
           <button type="button" data-tab="media">Images</button>
           <button type="button" data-tab="gallery">Galerie</button>
@@ -105,6 +106,37 @@
             <div class="admin-card">
               <h2>Dernieres donnees</h2>
               <div class="summary-grid" data-summary></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="analytics">
+          <div class="admin-card">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Analytics</p>
+                <h2>Statistiques de visite en temps reel</h2>
+              </div>
+              <button class="button secondary" type="button" data-refresh-dashboard>Actualiser</button>
+            </div>
+            <div class="analytics-grid" data-analytics-cards></div>
+          </div>
+          <div class="analytics-layout">
+            <div class="admin-card">
+              <h2>Sources de trafic</h2>
+              <div class="metric-list" data-analytics-sources></div>
+            </div>
+            <div class="admin-card">
+              <h2>Pages consultees</h2>
+              <div class="metric-list" data-analytics-pages></div>
+            </div>
+            <div class="admin-card">
+              <h2>Langues et appareils</h2>
+              <div class="metric-list" data-analytics-devices></div>
+            </div>
+            <div class="admin-card">
+              <h2>Visites recentes</h2>
+              <div class="metric-list" data-analytics-recent></div>
             </div>
           </div>
         </section>
@@ -162,6 +194,7 @@
                 <label class="wide">Description <textarea name="description" rows="4"></textarea></label>
                 <div class="form-actions">
                   <button class="button primary" type="submit">Enregistrer</button>
+                  <button class="button secondary" type="button" data-prefill-youtube>Video MO-DJIB YouTube</button>
                   <button class="button secondary" type="button" data-gallery-reset>Annuler</button>
                 </div>
               </form>
@@ -371,6 +404,6 @@
       </main>
     </div>
 
-    <script src="admin.js?v=20260521-admin2" defer></script>
+    <script src="admin.js?v=20260521-seo1" defer></script>
   </body>
 </html>
