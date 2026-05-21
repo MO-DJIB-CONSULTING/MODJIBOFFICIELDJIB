@@ -103,7 +103,11 @@ function shouldSkipRoot(name) {
     "README.md",
     "DEPLOYMENT.md",
     "ecosystem.config.cjs",
-    "admin-login-screenshot.png"
+    "admin-login-screenshot.png",
+    ".env.example",
+    ".env.production.example",
+    ".gitattributes",
+    ".gitignore"
   ]).has(name);
 }
 
