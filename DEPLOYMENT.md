@@ -20,6 +20,8 @@ Ce site n'est pas un simple site statique: il contient un serveur Node.js, une b
 ```bash
 ADMIN_PASSWORD=UN_MOT_DE_PASSE_FORT
 PUBLIC_URL=https://votre-domaine.com
+SYNC_ADMIN_PASSWORD=false
+NODE_ENV=production
 ```
 
 6. Lancer:
@@ -84,9 +86,19 @@ Les images/videos uploades pour le site sont ici:
 images/admin-uploads/
 ```
 
+Depuis l'admin, onglet `Securite`, vous pouvez aussi exporter un JSON de la base pour garder une copie rapide des contenus, societes, documents et journaux d'activite.
+
+## Protections activees
+
+- sessions admin en cookie `HttpOnly`;
+- blocage des origines non autorisees sur les actions admin;
+- limite anti-bruteforce sur la connexion admin, la recherche publique et les codes documents;
+- documents stockes hors du dossier public dans `data/documents/`;
+- headers de securite HTTP et blocage des nouveaux uploads SVG;
+- journal d'activite consultable dans l'admin.
+
 ## A eviter
 
 Ne pas deployer ce projet sur un hebergement uniquement statique, car l'admin, la base, les documents proteges et les uploads ne fonctionneront pas.
 
 Si vous utilisez une plateforme cloud type Render/Railway, il faut activer un disque/volume persistant et verifier que `data/` et `images/admin-uploads/` ne disparaissent pas a chaque redeploiement.
-

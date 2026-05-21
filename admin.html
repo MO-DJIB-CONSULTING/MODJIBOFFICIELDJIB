@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Admin | MO-DJIB Consulting</title>
-    <link rel="stylesheet" href="admin.css?v=20260511-gallery1">
+    <link rel="stylesheet" href="admin.css?v=20260521-sec1">
   </head>
   <body>
     <main class="login-screen" data-login-screen>
@@ -43,6 +43,7 @@
           <button type="button" data-tab="blog">Blog</button>
           <button type="button" data-tab="companies">Societes</button>
           <button type="button" data-tab="documents">Documents</button>
+          <button type="button" data-tab="security">Securite</button>
         </nav>
         <button class="button secondary" type="button" data-logout>Deconnexion</button>
       </aside>
@@ -55,6 +56,7 @@
           </div>
           <a class="button secondary" href="/" target="_blank" rel="noreferrer">Voir le site</a>
         </header>
+        <p class="global-status" data-global-status aria-live="polite"></p>
 
         <section class="panel active" data-panel="overview">
           <div class="stat-grid" data-stats></div>
@@ -77,12 +79,12 @@
               <h2>Ajouter une image</h2>
               <form class="grid-form" data-media-form>
                 <label class="wide">Image locale
-                  <input name="file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" required>
+                  <input name="file" type="file" accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/ogg,video/quicktime" required>
                 </label>
-                <button class="button primary" type="submit">Uploader dans la mediathèque</button>
+                <button class="button primary" type="submit">Uploader dans la mediatheque</button>
                 <p class="form-status" data-media-status aria-live="polite"></p>
               </form>
-              <p class="helper-text">Formats acceptes: JPG, PNG, WebP, SVG, GIF. Taille max: 8 Mo.</p>
+              <p class="helper-text">Formats acceptes: JPG, PNG, WebP, GIF, MP4, WebM, OGG, MOV. Les SVG sont refuses pour proteger le site.</p>
             </div>
             <div class="admin-card">
               <h2>Mediatheque locale</h2>
@@ -113,7 +115,7 @@
                   </select>
                 </label>
                 <label class="wide">Chemin media ou lien YouTube <input name="image" placeholder="images/admin-uploads/photo.jpg ou https://youtu.be/..." required></label>
-                <label class="wide">Uploader une image ou video <input name="media_file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif,video/mp4,video/webm,video/ogg,video/quicktime"></label>
+                <label class="wide">Uploader une image ou video <input name="media_file" type="file" accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/ogg,video/quicktime"></label>
                 <label class="wide">Description <textarea name="description" rows="4"></textarea></label>
                 <div class="form-actions">
                   <button class="button primary" type="submit">Enregistrer</button>
@@ -199,7 +201,7 @@
                 <label>Titre <input name="title" required></label>
                 <label>Categorie <input name="category" value="Actualite"></label>
                 <label>Image <input name="image" placeholder="images/documents.jpg"></label>
-                <label class="wide">Uploader une image pour cet article <input name="image_file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"></label>
+                <label class="wide">Uploader une image pour cet article <input name="image_file" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label>
                 <label>Statut
                   <select name="status">
                     <option value="published">Publie</option>
@@ -223,6 +225,18 @@
         </section>
 
         <section class="panel" data-panel="companies">
+          <div class="admin-card import-card">
+            <h2>Importer une liste de societes</h2>
+            <form class="grid-form" data-company-import-form>
+              <label class="wide">Coller une ligne par societe
+                <textarea name="text" rows="5" placeholder="Nom;Numero certificat;Statut;Secteur;Delivre le;Expire le;Notes"></textarea>
+              </label>
+              <div class="form-actions">
+                <button class="button primary" type="submit">Importer / mettre a jour</button>
+                <p class="form-status" data-company-import-status aria-live="polite"></p>
+              </div>
+            </form>
+          </div>
           <div class="two-column">
             <div class="admin-card">
               <h2 data-company-form-title>Ajouter une societe</h2>
@@ -259,11 +273,12 @@
         <section class="panel" data-panel="documents">
           <div class="two-column">
             <div class="admin-card">
-              <h2>Ajouter un document protege</h2>
+              <h2 data-document-form-title>Ajouter un document protege</h2>
               <form class="grid-form" data-document-form>
+                <input type="hidden" name="id">
                 <label>Titre <input name="title" required></label>
                 <label>Categorie <input name="category" value="Document"></label>
-                <label>Code d'acces <input name="code" required></label>
+                <label>Code d'acces <input name="code" placeholder="Requis pour un nouveau document"></label>
                 <label>Statut
                   <select name="status">
                     <option value="active">Actif</option>
@@ -271,9 +286,12 @@
                   </select>
                 </label>
                 <label class="wide">Description <textarea name="description" rows="4"></textarea></label>
-                <label class="wide">Fichier <input name="file" type="file" required></label>
-                <button class="button primary" type="submit">Ajouter le document</button>
-                <p class="form-status" data-document-status aria-live="polite"></p>
+                <label class="wide">Fichier <input name="file" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp,.zip"></label>
+                <div class="form-actions">
+                  <button class="button primary" type="submit">Enregistrer le document</button>
+                  <button class="button secondary" type="button" data-document-reset>Annuler</button>
+                  <p class="form-status" data-document-status aria-live="polite"></p>
+                </div>
               </form>
             </div>
             <div class="admin-card">
@@ -282,9 +300,34 @@
             </div>
           </div>
         </section>
+
+        <section class="panel" data-panel="security">
+          <div class="two-column">
+            <div class="admin-card">
+              <h2>Protection admin</h2>
+              <form class="grid-form" data-password-form>
+                <label class="wide">Mot de passe actuel <input name="currentPassword" type="password" autocomplete="current-password" required></label>
+                <label>Nouveau mot de passe <input name="newPassword" type="password" autocomplete="new-password" minlength="12" required></label>
+                <label>Confirmation <input name="confirmPassword" type="password" autocomplete="new-password" minlength="12" required></label>
+                <div class="form-actions">
+                  <button class="button primary" type="submit">Modifier le mot de passe</button>
+                  <p class="form-status" data-password-status aria-live="polite"></p>
+                </div>
+              </form>
+            </div>
+            <div class="admin-card">
+              <h2>Sauvegarde et activite</h2>
+              <div class="security-actions">
+                <button class="button secondary" type="button" data-export-json>Exporter la base en JSON</button>
+                <button class="button secondary" type="button" data-refresh-audit>Actualiser le journal</button>
+              </div>
+              <div class="audit-list" data-audit-list></div>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
 
-    <script src="admin.js?v=20260511-gallery1" defer></script>
+    <script src="admin.js?v=20260521-sec1" defer></script>
   </body>
 </html>

@@ -11,8 +11,18 @@ Site modernise avec:
 - documents proteges par code;
 - recherche publique par nom de societe ou numero de certificat;
 - pricing qui renvoie vers WhatsApp ou email.
+- protections serveur: headers de securite, anti-bruteforce login/documents, journal d'activite admin;
+- export JSON de la base depuis l'admin.
 
 Depuis l'admin, l'onglet `Images` permet d'uploader des visuels, de les appliquer au logo, au hero, a la section contact ou de copier leur chemin. L'onglet `Galerie` permet de publier une image, une video locale ou un lien YouTube avec titre, description, ordre et statut.
+
+L'onglet `Societes` permet aussi d'importer une liste en texte/CSV avec le format:
+
+```text
+Nom;Numero certificat;Statut;Secteur;Delivre le;Expire le;Notes
+```
+
+L'onglet `Securite` permet de modifier le mot de passe admin, exporter les donnees en JSON et consulter les dernieres actions.
 
 ## Lancer le site
 
@@ -35,11 +45,7 @@ Les identifiants sont dans le fichier local `.env`.
 
 Pour changer le mot de passe:
 
-```powershell
-$env:ADMIN_PASSWORD="VotreMotDePasseFort"
-npm run reset-admin
-npm start
-```
+Utiliser l'onglet `Securite` dans l'espace admin. En production, gardez `SYNC_ADMIN_PASSWORD=false` apres la premiere installation pour eviter qu'un redemarrage remplace le mot de passe choisi dans l'admin.
 
 La base se cree dans `data/mo-djibconsulting.sqlite`. Les documents uploades sont stockes dans `data/documents` et ne sont pas servis publiquement sans code.
 

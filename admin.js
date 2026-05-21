@@ -9,6 +9,7 @@ let state = {
   companies: [],
   documents: [],
   media: [],
+  auditLogs: [],
   stats: {}
 };
 
@@ -121,6 +122,20 @@ function showApp(isLoggedIn) {
   document.querySelector("[data-admin-shell]").hidden = !isLoggedIn;
 }
 
+function notify(message, tone = "info") {
+  const node = document.querySelector("[data-global-status]");
+  if (!node) return;
+  node.textContent = message || "";
+  node.dataset.tone = tone;
+  if (message) {
+    window.clearTimeout(notify.timer);
+    notify.timer = window.setTimeout(() => {
+      node.textContent = "";
+      node.dataset.tone = "info";
+    }, 4500);
+  }
+}
+
 function renderStats() {
   const root = document.querySelector("[data-stats]");
   const labels = [
@@ -175,7 +190,7 @@ function renderContentForm() {
       field = `
         <div class="image-field">
           <input name="${key}" value="${value}" placeholder="images/admin-uploads/image.jpg">
-          <input data-image-file="${key}" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif">
+          <input data-image-file="${key}" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
           <button class="button secondary" type="button" data-upload-content-image="${key}">Uploader et utiliser</button>
           ${value ? `<img src="${value}" alt="">` : ""}
         </div>
@@ -317,6 +332,13 @@ function adminGalleryPreview(item) {
   return `<img src="${escapeHtml(item.image)}" alt="">`;
 }
 
+function mediaPreview(file) {
+  if ((file.media_type || "image") === "video") {
+    return `<video src="${escapeHtml(file.url)}" controls muted preload="metadata"></video>`;
+  }
+  return `<img src="${escapeHtml(file.url)}" alt="">`;
+}
+
 function renderGalleryList() {
   const root = document.querySelector("[data-gallery-list]");
   if (!root) return;
@@ -377,7 +399,7 @@ function renderMediaList() {
   }
   root.innerHTML = state.media.map((file) => `
     <article class="media-card">
-      <img src="${escapeHtml(file.url)}" alt="">
+      ${mediaPreview(file)}
       <div>
         <h3>${escapeHtml(file.name)}</h3>
         <p>${Math.max(1, Math.round((file.size || 0) / 1024))} Ko</p>
@@ -494,8 +516,54 @@ function renderDocumentList() {
       <p>${escapeHtml(doc.description || "Sans description")}</p>
       <p>${escapeHtml(doc.original_filename)} - ${Math.max(1, Math.round((doc.size || 0) / 1024))} Ko</p>
       <div class="row-actions">
+        <button class="button secondary" type="button" data-edit-document="${doc.id}">Modifier</button>
         <button class="button danger" type="button" data-delete-document="${doc.id}">Supprimer</button>
       </div>
+    </article>
+  `).join("");
+}
+
+function resetDocumentForm() {
+  const form = document.querySelector("[data-document-form]");
+  form.reset();
+  form.elements.id.value = "";
+  form.elements.category.value = "Document";
+  form.elements.status.value = "active";
+  form.elements.file.required = false;
+  form.elements.code.required = false;
+  document.querySelector("[data-document-form-title]").textContent = "Ajouter un document protege";
+}
+
+function fillDocumentForm(id) {
+  const doc = state.documents.find((item) => String(item.id) === String(id));
+  if (!doc) return;
+  const form = document.querySelector("[data-document-form]");
+  form.elements.id.value = doc.id;
+  form.elements.title.value = doc.title || "";
+  form.elements.category.value = doc.category || "Document";
+  form.elements.code.value = "";
+  form.elements.status.value = doc.status || "active";
+  form.elements.description.value = doc.description || "";
+  form.elements.file.value = "";
+  form.elements.file.required = false;
+  form.elements.code.required = false;
+  document.querySelector("[data-document-form-title]").textContent = "Modifier le document protege";
+}
+
+function renderAuditLogs() {
+  const root = document.querySelector("[data-audit-list]");
+  if (!root) return;
+  if (!state.auditLogs.length) {
+    root.innerHTML = '<div class="list-item"><p>Aucune activite recente.</p></div>';
+    return;
+  }
+  root.innerHTML = state.auditLogs.map((entry) => `
+    <article class="audit-item">
+      <div>
+        <strong>${escapeHtml(entry.action)}</strong>
+        <span>${escapeHtml(entry.target || "site")} - ${escapeHtml(entry.actor || "system")}</span>
+      </div>
+      <time>${escapeHtml(new Date(entry.created_at).toLocaleString("fr-FR"))}</time>
     </article>
   `).join("");
 }
@@ -510,6 +578,7 @@ function renderAll() {
   renderBlogList();
   renderCompanyList();
   renderDocumentList();
+  renderAuditLogs();
 }
 
 async function refresh() {
@@ -523,6 +592,7 @@ async function refresh() {
     companies: payload.companies || [],
     documents: payload.documents || [],
     media: payload.media || [],
+    auditLogs: payload.auditLogs || [],
     stats: payload.stats || {}
   };
   document.querySelectorAll("[data-admin-logo]").forEach((node) => {
@@ -853,15 +923,42 @@ function bindCompanies() {
     const data = formObject(form);
     const id = data.id;
     delete data.id;
-    const payload = await api(id ? `/api/admin/companies/${id}` : "/api/admin/companies", {
-      method: id ? "PUT" : "POST",
-      body: JSON.stringify(data)
-    });
-    state.companies = payload.companies || state.companies;
-    state.stats.companies = state.companies.length;
-    resetCompanyForm();
-    renderStats();
-    renderCompanyList();
+    try {
+      const payload = await api(id ? `/api/admin/companies/${id}` : "/api/admin/companies", {
+        method: id ? "PUT" : "POST",
+        body: JSON.stringify(data)
+      });
+      state.companies = payload.companies || state.companies;
+      state.stats.companies = state.companies.length;
+      resetCompanyForm();
+      renderStats();
+      renderCompanyList();
+      notify("Societe enregistree.", "success");
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  });
+
+  document.querySelector("[data-company-import-form]").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const status = document.querySelector("[data-company-import-status]");
+    status.textContent = "Import en cours...";
+    try {
+      const payload = await api("/api/admin/companies/import", {
+        method: "POST",
+        body: JSON.stringify(formObject(form))
+      });
+      state.companies = payload.companies || state.companies;
+      state.stats.companies = state.companies.length;
+      form.reset();
+      status.textContent = `${payload.imported || 0} societe(s) importee(s).`;
+      renderStats();
+      renderCompanyList();
+      await refreshAuditLogs();
+    } catch (error) {
+      status.textContent = error.message;
+    }
   });
 
   document.querySelector("[data-company-reset]").addEventListener("click", resetCompanyForm);
@@ -903,45 +1000,132 @@ async function uploadMediaFile(file) {
   return payload.file?.url;
 }
 
-function bindDocuments() {
-  document.querySelector("[data-document-form]").addEventListener("submit", async (event) => {
+async function refreshAuditLogs() {
+  const payload = await api("/api/admin/audit-logs");
+  state.auditLogs = payload.auditLogs || [];
+  renderAuditLogs();
+}
+
+async function exportJsonBackup() {
+  const response = await fetch("/api/admin/export", {
+    credentials: "include",
+    cache: "no-store"
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || "Export impossible.");
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const date = new Date().toISOString().slice(0, 10);
+  link.href = url;
+  link.download = `mo-djib-backup-${date}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function bindSecurity() {
+  document.querySelector("[data-password-form]").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
-    const status = document.querySelector("[data-document-status]");
-    const file = form.elements.file.files[0];
-    if (!file) return;
-    status.textContent = "Upload en cours...";
+    const status = document.querySelector("[data-password-status]");
+    const data = formObject(form);
+    if (data.newPassword !== data.confirmPassword) {
+      status.textContent = "La confirmation ne correspond pas.";
+      return;
+    }
+    status.textContent = "Mise a jour...";
     try {
-      const data = formObject(form);
-      data.fileName = file.name;
-      data.mimeType = file.type || "application/octet-stream";
-      data.base64 = await readFileAsBase64(file);
-      delete data.file;
-      const payload = await api("/api/admin/documents", {
-        method: "POST",
+      await api("/api/admin/security/password", {
+        method: "PUT",
         body: JSON.stringify(data)
       });
-      state.documents = payload.documents || state.documents;
-      state.stats.documents = state.documents.length;
       form.reset();
-      form.elements.category.value = "Document";
-      form.elements.status.value = "active";
-      status.textContent = "Document ajoute.";
-      renderStats();
-      renderDocumentList();
+      status.textContent = "Mot de passe modifie.";
+      await refreshAuditLogs();
     } catch (error) {
       status.textContent = error.message;
     }
   });
 
+  document.querySelector("[data-export-json]").addEventListener("click", async () => {
+    notify("Preparation de l'export...", "info");
+    try {
+      await exportJsonBackup();
+      notify("Export JSON cree.", "success");
+      await refreshAuditLogs();
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  });
+
+  document.querySelector("[data-refresh-audit]").addEventListener("click", async () => {
+    try {
+      await refreshAuditLogs();
+      notify("Journal actualise.", "success");
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  });
+}
+
+function bindDocuments() {
+  document.querySelector("[data-document-form]").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const status = document.querySelector("[data-document-status]");
+    const data = formObject(form);
+    const id = data.id;
+    const file = form.elements.file.files[0];
+    if (!id && !file) {
+      status.textContent = "Choisis un fichier pour ajouter un document.";
+      return;
+    }
+    if (!id && !data.code) {
+      status.textContent = "Ajoute un code d'acces pour proteger ce document.";
+      return;
+    }
+    status.textContent = "Upload en cours...";
+    try {
+      if (file) {
+        data.fileName = file.name;
+        data.mimeType = file.type || "application/octet-stream";
+        data.base64 = await readFileAsBase64(file);
+      }
+      delete data.file;
+      delete data.id;
+      const payload = await api(id ? `/api/admin/documents/${id}` : "/api/admin/documents", {
+        method: id ? "PUT" : "POST",
+        body: JSON.stringify(data)
+      });
+      state.documents = payload.documents || state.documents;
+      state.stats.documents = state.documents.length;
+      resetDocumentForm();
+      status.textContent = id ? "Document modifie." : "Document ajoute.";
+      renderStats();
+      renderDocumentList();
+      await refreshAuditLogs();
+    } catch (error) {
+      status.textContent = error.message;
+    }
+  });
+
+  document.querySelector("[data-document-reset]").addEventListener("click", resetDocumentForm);
+
   document.querySelector("[data-document-list]").addEventListener("click", async (event) => {
+    const edit = event.target.closest("[data-edit-document]");
     const remove = event.target.closest("[data-delete-document]");
+    if (edit) fillDocumentForm(edit.dataset.editDocument);
     if (remove && confirm("Supprimer ce document ?")) {
       const payload = await api(`/api/admin/documents/${remove.dataset.deleteDocument}`, { method: "DELETE" });
       state.documents = payload.documents || state.documents;
       state.stats.documents = state.documents.length;
       renderStats();
       renderDocumentList();
+      await refreshAuditLogs();
     }
   });
 }
@@ -957,6 +1141,7 @@ async function boot() {
   bindBlog();
   bindCompanies();
   bindDocuments();
+  bindSecurity();
   try {
     await refresh();
     showApp(true);

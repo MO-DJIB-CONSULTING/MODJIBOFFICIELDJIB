@@ -242,6 +242,29 @@ select:focus {
   margin-bottom: 26px;
 }
 
+.global-status {
+  min-height: 0;
+  margin: -12px 0 18px;
+  padding: 0;
+  color: var(--teal-dark);
+  font-weight: 900;
+}
+
+.global-status:not(:empty) {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--mint);
+}
+
+.global-status[data-tone="error"] {
+  color: #8a2f1d;
+  background: #fff1ec;
+}
+
 .panel {
   display: none;
 }
@@ -284,6 +307,10 @@ select:focus {
 
 .admin-card {
   padding: 22px;
+}
+
+.import-card {
+  margin-bottom: 18px;
 }
 
 .grid-form {
@@ -392,7 +419,8 @@ select:focus {
   box-shadow: 0 8px 28px rgba(20, 35, 31, 0.06);
 }
 
-.media-card img {
+.media-card img,
+.media-card video {
   width: 100%;
   aspect-ratio: 16 / 10;
   object-fit: cover;
@@ -452,6 +480,43 @@ select:focus {
   gap: 8px;
 }
 
+.security-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.audit-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  max-height: 520px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.audit-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+}
+
+.audit-item div {
+  display: grid;
+  gap: 4px;
+}
+
+.audit-item span,
+.audit-item time {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
 .danger {
   color: var(--white);
   background: var(--coral);
@@ -499,5 +564,9 @@ select:focus {
 
   .gallery-admin-card {
     grid-template-columns: 1fr;
+  }
+
+  .audit-item {
+    flex-direction: column;
   }
 }

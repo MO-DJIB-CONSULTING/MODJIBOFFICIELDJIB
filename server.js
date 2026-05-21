@@ -33,6 +33,9 @@ const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "admin@modjibconsulting.com").to
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "ChangeMoi2026!";
 const PORT = Number(process.env.PORT || 3000);
 const SYNC_ADMIN_PASSWORD = process.env.SYNC_ADMIN_PASSWORD !== "false";
+const PUBLIC_URL = normalizeText(process.env.PUBLIC_URL || "");
+const MAX_MEDIA_SIZE = Number(process.env.MAX_MEDIA_SIZE_MB || 80) * 1024 * 1024;
+const MAX_DOCUMENT_SIZE = Number(process.env.MAX_DOCUMENT_SIZE_MB || 25) * 1024 * 1024;
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -43,6 +46,29 @@ db.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;");
 
 const sessions = new Map();
 const documentTokens = new Map();
+const rateLimits = new Map();
+
+const documentExtensions = new Set([
+  ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+  ".txt", ".csv", ".jpg", ".jpeg", ".png", ".webp", ".zip"
+]);
+const documentMimeTypes = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+  "text/csv",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/zip",
+  "application/x-zip-compressed",
+  "application/octet-stream"
+]);
 
 function nowIso() {
   return new Date().toISOString();
@@ -50,6 +76,11 @@ function nowIso() {
 
 function normalizeText(value) {
   return String(value || "").trim();
+}
+
+function requestIp(req) {
+  const forwarded = normalizeText(req.headers["x-forwarded-for"]).split(",")[0].trim();
+  return forwarded || req.socket.remoteAddress || "local";
 }
 
 function slugify(value) {
@@ -79,8 +110,8 @@ function publicMediaPath(fileName) {
 function isAllowedImage(mimeType, fileName) {
   const mime = normalizeText(mimeType).toLowerCase();
   const ext = path.extname(fileName).toLowerCase();
-  return ["image/jpeg", "image/png", "image/webp", "image/svg+xml", "image/gif"].includes(mime)
-    || [".jpg", ".jpeg", ".png", ".webp", ".svg", ".gif"].includes(ext);
+  return ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(mime)
+    || [".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(ext);
 }
 
 function mediaTypeFromSource(source) {
@@ -103,6 +134,84 @@ function isAllowedMedia(mimeType, fileName) {
   return isAllowedImage(mime, fileName)
     || ["video/mp4", "video/webm", "video/ogg", "video/quicktime"].includes(mime)
     || [".mp4", ".webm", ".ogg", ".mov"].includes(ext);
+}
+
+function isAllowedDocument(mimeType, fileName) {
+  const mime = normalizeText(mimeType).toLowerCase();
+  const ext = path.extname(fileName).toLowerCase();
+  return documentExtensions.has(ext) && (documentMimeTypes.has(mime) || mime === "");
+}
+
+function isBase64(value) {
+  const clean = normalizeText(value);
+  return clean.length > 0 && clean.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(clean);
+}
+
+function securityHeaders(extra = {}) {
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' blob: data:",
+    "frame-src https://www.youtube.com https://www.youtube-nocookie.com",
+    "connect-src 'self'",
+    "font-src 'self' data:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "frame-ancestors 'self'",
+    "form-action 'self'"
+  ].join("; ");
+
+  return {
+    "Content-Security-Policy": csp,
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "SAMEORIGIN",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    ...extra
+  };
+}
+
+function isHttpsRequest(req) {
+  return req.socket.encrypted || normalizeText(req.headers["x-forwarded-proto"]).split(",")[0] === "https";
+}
+
+function sessionCookie(value, maxAge, req) {
+  const secure = process.env.COOKIE_SECURE === "true" || isHttpsRequest(req);
+  return `${SESSION_COOKIE}=${encodeURIComponent(value)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${secure ? "; Secure" : ""}`;
+}
+
+function untrustedOrigin(req) {
+  if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return "";
+  const origin = normalizeText(req.headers.origin);
+  if (!origin) return "";
+  const allowed = new Set([`http://${req.headers.host}`, `https://${req.headers.host}`]);
+  if (PUBLIC_URL) allowed.add(PUBLIC_URL.replace(/\/+$/g, ""));
+  return allowed.has(origin.replace(/\/+$/g, "")) ? "" : origin;
+}
+
+function checkRateLimit(req, name, maxAttempts, windowMs) {
+  const key = `${name}:${requestIp(req)}`;
+  const now = Date.now();
+  const entry = rateLimits.get(key);
+  if (!entry || entry.resetAt < now) {
+    rateLimits.set(key, { count: 1, resetAt: now + windowMs });
+    return { ok: true };
+  }
+  entry.count += 1;
+  if (entry.count > maxAttempts) {
+    return { ok: false, retryAfter: Math.ceil((entry.resetAt - now) / 1000) };
+  }
+  return { ok: true };
+}
+
+function clearRateLimit(req, name) {
+  rateLimits.delete(`${name}:${requestIp(req)}`);
+}
+
+function jsonUploadLimit(rawByteLimit) {
+  return Math.ceil(rawByteLimit * 1.4) + 1024 * 1024;
 }
 
 function randomToken(bytes = 32) {
@@ -135,7 +244,8 @@ function initSchema() {
       email TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'admin',
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS site_content (
@@ -216,21 +326,32 @@ function initSchema() {
       uploaded_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      actor TEXT NOT NULL DEFAULT '',
+      action TEXT NOT NULL,
+      target TEXT NOT NULL DEFAULT '',
+      details TEXT NOT NULL DEFAULT '',
+      ip TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    );
   `);
 }
 
 function ensureAdminAccount() {
   const stamp = nowIso();
-  const admin = db.prepare("SELECT id FROM users WHERE email = ?").get(ADMIN_EMAIL);
+  const admin = db.prepare("SELECT id, created_at, updated_at FROM users WHERE email = ?").get(ADMIN_EMAIL);
   if (!admin) {
-    db.prepare("INSERT INTO users (email, password_hash, role, created_at) VALUES (?, ?, ?, ?)")
-      .run(ADMIN_EMAIL, hashPassword(ADMIN_PASSWORD), "admin", stamp);
+    db.prepare("INSERT INTO users (email, password_hash, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
+      .run(ADMIN_EMAIL, hashPassword(ADMIN_PASSWORD), "admin", stamp, stamp);
     return;
   }
 
-  if (SYNC_ADMIN_PASSWORD) {
-    db.prepare("UPDATE users SET password_hash = ?, role = 'admin' WHERE email = ?")
-      .run(hashPassword(ADMIN_PASSWORD), ADMIN_EMAIL);
+  const managedPassword = db.prepare("SELECT value FROM site_content WHERE key = 'adminPasswordManagedAt'").get();
+  if (SYNC_ADMIN_PASSWORD && !managedPassword) {
+    db.prepare("UPDATE users SET password_hash = ?, role = 'admin', updated_at = ? WHERE email = ?")
+      .run(hashPassword(ADMIN_PASSWORD), stamp, ADMIN_EMAIL);
   }
 }
 
@@ -242,6 +363,7 @@ function ensureColumn(table, column, ddl) {
 }
 
 function ensureMigrations() {
+  ensureColumn("users", "updated_at", "updated_at TEXT NOT NULL DEFAULT ''");
   ensureColumn("gallery_items", "media_type", "media_type TEXT NOT NULL DEFAULT 'image'");
 }
 
@@ -253,8 +375,8 @@ function seedDatabase() {
   const stamp = nowIso();
 
   if (tableCount("users") === 0) {
-    db.prepare("INSERT INTO users (email, password_hash, role, created_at) VALUES (?, ?, ?, ?)")
-      .run(ADMIN_EMAIL, hashPassword(ADMIN_PASSWORD), "admin", stamp);
+    db.prepare("INSERT INTO users (email, password_hash, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
+      .run(ADMIN_EMAIL, hashPassword(ADMIN_PASSWORD), "admin", stamp, stamp);
   }
 
   if (tableCount("site_content") === 0) {
@@ -585,6 +707,45 @@ function getDocuments({ publicOnly = false } = {}) {
   return db.prepare(sql).all();
 }
 
+function getAuditLogs(limit = 80) {
+  return db.prepare("SELECT * FROM audit_logs ORDER BY created_at DESC, id DESC LIMIT ?").all(Number(limit) || 80)
+    .map((row) => ({
+      ...row,
+      details: parseJson(row.details, {})
+    }));
+}
+
+function logAudit(req, action, target = "", details = {}, actor = "") {
+  const safeDetails = { ...details };
+  for (const key of ["password", "currentPassword", "newPassword", "code", "base64"]) {
+    if (key in safeDetails) safeDetails[key] = "[masque]";
+  }
+  db.prepare("INSERT INTO audit_logs (actor, action, target, details, ip, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+    .run(
+      normalizeText(actor),
+      normalizeText(action),
+      normalizeText(target),
+      JSON.stringify(safeDetails).slice(0, 4000),
+      requestIp(req),
+      nowIso()
+    );
+}
+
+function exportPayload() {
+  return {
+    generatedAt: nowIso(),
+    content: getContent(),
+    services: getServices(),
+    pricing: getPricing(),
+    posts: getBlogPosts(),
+    gallery: getGalleryItems(),
+    companies: getCompanies({ limit: 5000 }),
+    documents: getDocuments(),
+    media: getMediaFiles(),
+    auditLogs: getAuditLogs(250)
+  };
+}
+
 function getMediaFiles() {
   if (!fs.existsSync(MEDIA_DIR)) return [];
   return fs.readdirSync(MEDIA_DIR, { withFileTypes: true })
@@ -605,16 +766,16 @@ function getMediaFiles() {
 
 function sendJson(res, statusCode, payload, headers = {}) {
   const body = JSON.stringify(payload);
-  res.writeHead(statusCode, {
+  res.writeHead(statusCode, securityHeaders({
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(body),
     ...headers
-  });
+  }));
   res.end(body);
 }
 
-function sendError(res, statusCode, message) {
-  sendJson(res, statusCode, { error: message });
+function sendError(res, statusCode, message, headers = {}) {
+  sendJson(res, statusCode, { error: message }, headers);
 }
 
 function readBody(req, limit = 30 * 1024 * 1024) {
@@ -635,8 +796,8 @@ function readBody(req, limit = 30 * 1024 * 1024) {
   });
 }
 
-async function readJson(req) {
-  const body = await readBody(req);
+async function readJson(req, limit) {
+  const body = await readBody(req, limit);
   if (!body.length) return {};
   return JSON.parse(body.toString("utf8"));
 }
@@ -717,12 +878,40 @@ function serveStatic(req, res, pathname) {
       return;
     }
 
-    res.writeHead(200, {
+    const headers = securityHeaders({
       "Content-Type": mimeType(filePath),
       "Cache-Control": decoded.startsWith("/admin") || decoded.endsWith(".js") || decoded.endsWith(".css")
         ? "no-store"
-        : "public, max-age=120"
+        : "public, max-age=120",
+      "Accept-Ranges": "bytes"
     });
+    if (path.extname(filePath).toLowerCase() === ".svg" && filePath.startsWith(MEDIA_DIR)) {
+      headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'";
+    }
+
+    if (req.method === "HEAD") {
+      res.writeHead(200, { ...headers, "Content-Length": stat.size });
+      res.end();
+      return;
+    }
+
+    const range = req.headers.range;
+    if (range && /^bytes=\d*-\d*$/.test(range)) {
+      const [, startValue, endValue] = range.match(/^bytes=(\d*)-(\d*)$/);
+      const start = startValue ? Number(startValue) : 0;
+      const end = endValue ? Math.min(Number(endValue), stat.size - 1) : stat.size - 1;
+      if (start <= end && start < stat.size) {
+        res.writeHead(206, {
+          ...headers,
+          "Content-Length": end - start + 1,
+          "Content-Range": `bytes ${start}-${end}/${stat.size}`
+        });
+        fs.createReadStream(filePath, { start, end }).pipe(res);
+        return;
+      }
+    }
+
+    res.writeHead(200, { ...headers, "Content-Length": stat.size });
     fs.createReadStream(filePath).pipe(res);
   });
 }
@@ -751,6 +940,33 @@ function searchCompanies(query) {
   `).all(q, q);
 }
 
+function normalizeCompanyStatus(value) {
+  const status = normalizeText(value);
+  return ["Certifiee", "Referencee", "En audit", "Suspendue"].includes(status) ? status : "Certifiee";
+}
+
+function parseCompanyImport(text) {
+  return normalizeText(text)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line, index) => !(index === 0 && /nom|societe|certificat/i.test(line)))
+    .map((line) => {
+      const separator = line.includes(";") ? ";" : (line.includes("\t") ? "\t" : ",");
+      const [name, certificateNumber, status, sector, issuedAt, expiresAt, notes] = line.split(separator).map(normalizeText);
+      return {
+        name,
+        certificate_number: certificateNumber,
+        status: normalizeCompanyStatus(status),
+        sector,
+        issued_at: issuedAt,
+        expires_at: expiresAt,
+        notes
+      };
+    })
+    .filter((row) => row.name && row.certificate_number);
+}
+
 async function handlePublicApi(req, res, url, segments) {
   if (req.method === "GET" && segments.length === 1) {
     sendJson(res, 200, publicPayload());
@@ -758,6 +974,11 @@ async function handlePublicApi(req, res, url, segments) {
   }
 
   if (req.method === "GET" && segments[1] === "companies" && segments[2] === "search") {
+    const limit = checkRateLimit(req, "company-search", 80, 60 * 1000);
+    if (!limit.ok) {
+      sendError(res, 429, "Trop de recherches. Reessayez dans un instant.", { "Retry-After": String(limit.retryAfter) });
+      return true;
+    }
     sendJson(res, 200, { companies: searchCompanies(url.searchParams.get("q") || "") });
     return true;
   }
@@ -776,13 +997,21 @@ async function handlePublicApi(req, res, url, segments) {
     }
 
     if (req.method === "POST" && segments[3] === "verify") {
+      const limit = checkRateLimit(req, `document-${id}`, 8, 10 * 60 * 1000);
+      if (!limit.ok) {
+        sendError(res, 429, "Trop de tentatives. Reessayez plus tard.", { "Retry-After": String(limit.retryAfter) });
+        return true;
+      }
       const body = await readJson(req);
       if (hashAccessCode(body.code) !== document.code_hash) {
+        logAudit(req, "document_code_refuse", `document:${id}`, { title: document.title }, "public");
         sendError(res, 403, "Code incorrect.");
         return true;
       }
+      clearRateLimit(req, `document-${id}`);
       const token = randomToken(24);
       documentTokens.set(token, { id, expiresAt: Date.now() + 10 * 60 * 1000 });
+      logAudit(req, "document_code_valide", `document:${id}`, { title: document.title }, "public");
       sendJson(res, 200, { ok: true, downloadUrl: `/api/documents/${id}/download?token=${token}` });
       return true;
     }
@@ -802,11 +1031,12 @@ async function handlePublicApi(req, res, url, segments) {
         return true;
       }
 
-      res.writeHead(200, {
+      logAudit(req, "document_telecharge", `document:${id}`, { title: document.title }, "public");
+      res.writeHead(200, securityHeaders({
         "Content-Type": document.mime_type || "application/octet-stream",
         "Content-Disposition": `attachment; filename="${encodeURIComponent(document.original_filename)}"`,
         "Cache-Control": "no-store"
-      });
+      }));
       fs.createReadStream(filePath).pipe(res);
       return true;
     }
@@ -816,21 +1046,36 @@ async function handlePublicApi(req, res, url, segments) {
 }
 
 async function handleAdminApi(req, res, segments) {
+  const badOrigin = untrustedOrigin(req);
+  if (badOrigin) {
+    sendError(res, 403, "Origine non autorisee.");
+    return true;
+  }
+
   if (req.method === "POST" && segments[2] === "login") {
+    const limit = checkRateLimit(req, "admin-login", 8, 15 * 60 * 1000);
+    if (!limit.ok) {
+      sendError(res, 429, "Trop de tentatives de connexion. Reessayez plus tard.", { "Retry-After": String(limit.retryAfter) });
+      return true;
+    }
+
     const body = await readJson(req);
     const user = db.prepare("SELECT * FROM users WHERE email = ?").get(normalizeText(body.email).toLowerCase());
     if (!user || !verifyPassword(body.password || "", user.password_hash)) {
+      logAudit(req, "connexion_refusee", "admin", { email: normalizeText(body.email).toLowerCase() }, normalizeText(body.email).toLowerCase());
       sendError(res, 401, "Identifiants invalides.");
       return true;
     }
 
+    clearRateLimit(req, "admin-login");
     const token = randomToken();
     sessions.set(token, {
       user: { id: user.id, email: user.email, role: user.role },
       expiresAt: Date.now() + 8 * 60 * 60 * 1000
     });
+    logAudit(req, "connexion_reussie", "admin", { email: user.email }, user.email);
     sendJson(res, 200, { ok: true, user: { email: user.email, role: user.role } }, {
-      "Set-Cookie": `${SESSION_COOKIE}=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800`
+      "Set-Cookie": sessionCookie(token, 28800, req)
     });
     return true;
   }
@@ -839,7 +1084,7 @@ async function handleAdminApi(req, res, segments) {
     const token = parseCookies(req)[SESSION_COOKIE];
     if (token) sessions.delete(token);
     sendJson(res, 200, { ok: true }, {
-      "Set-Cookie": `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`
+      "Set-Cookie": sessionCookie("", 0, req)
     });
     return true;
   }
@@ -867,8 +1112,57 @@ async function handleAdminApi(req, res, segments) {
       gallery: getGalleryItems(),
       companies: getCompanies({ limit: 500 }),
       documents: getDocuments(),
-      media: getMediaFiles()
+      media: getMediaFiles(),
+      auditLogs: getAuditLogs()
     });
+    return true;
+  }
+
+  if (req.method === "GET" && segments[2] === "audit-logs") {
+    sendJson(res, 200, { ok: true, auditLogs: getAuditLogs(120) });
+    return true;
+  }
+
+  if (req.method === "GET" && segments[2] === "export") {
+    const body = JSON.stringify(exportPayload(), null, 2);
+    const fileDate = new Date().toISOString().slice(0, 10);
+    res.writeHead(200, securityHeaders({
+      "Content-Type": "application/json; charset=utf-8",
+      "Content-Disposition": `attachment; filename="mo-djib-backup-${fileDate}.json"`,
+      "Cache-Control": "no-store",
+      "Content-Length": Buffer.byteLength(body)
+    }));
+    res.end(body);
+    logAudit(req, "export_json", "database", {}, admin.email);
+    return true;
+  }
+
+  if (segments[2] === "security" && segments[3] === "password" && req.method === "PUT") {
+    const body = await readJson(req);
+    const currentUser = db.prepare("SELECT * FROM users WHERE id = ?").get(admin.id);
+    if (!currentUser || !verifyPassword(body.currentPassword || "", currentUser.password_hash)) {
+      logAudit(req, "mot_de_passe_refuse", `user:${admin.id}`, {}, admin.email);
+      sendError(res, 403, "Mot de passe actuel incorrect.");
+      return true;
+    }
+    const newPassword = String(body.newPassword || "");
+    if (newPassword.length < 12 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      sendError(res, 422, "Le nouveau mot de passe doit contenir au moins 12 caracteres avec majuscule, minuscule et chiffre.");
+      return true;
+    }
+    const stamp = nowIso();
+    db.prepare("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?")
+      .run(hashPassword(newPassword), stamp, admin.id);
+    db.prepare(`
+      INSERT INTO site_content (key, value, updated_at)
+      VALUES ('adminPasswordManagedAt', ?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    `).run(stamp, stamp);
+    for (const [token, session] of sessions.entries()) {
+      if (session.user.id !== admin.id) sessions.delete(token);
+    }
+    logAudit(req, "mot_de_passe_modifie", `user:${admin.id}`, {}, admin.email);
+    sendJson(res, 200, { ok: true, message: "Mot de passe mis a jour." });
     return true;
   }
 
@@ -885,6 +1179,7 @@ async function handleAdminApi(req, res, segments) {
       upsert.run(key, String(value ?? ""), stamp);
     }
     upsert.run("lastContentUpdate", stamp, stamp);
+    logAudit(req, "contenu_modifie", "site_content", { keys: Object.keys(content) }, admin.email);
     sendJson(res, 200, { ok: true, content: getContent() });
     return true;
   }
@@ -896,19 +1191,19 @@ async function handleAdminApi(req, res, segments) {
     }
 
     if (req.method === "POST") {
-      const body = await readJson(req);
+      const body = await readJson(req, jsonUploadLimit(MAX_MEDIA_SIZE));
       const originalName = safeFileName(body.fileName || body.name || "image");
       const mime = normalizeText(body.mimeType) || mimeType(originalName);
       const base64 = normalizeText(body.base64 || "").replace(/^data:[^;]+;base64,/, "");
 
-      if (!base64 || !isAllowedMedia(mime, originalName)) {
-        sendError(res, 422, "Media invalide. Formats acceptes: JPG, PNG, WebP, SVG, GIF, MP4, WebM, OGG, MOV.");
+      if (!isBase64(base64) || !isAllowedMedia(mime, originalName)) {
+        sendError(res, 422, "Media invalide. Formats acceptes: JPG, PNG, WebP, GIF, MP4, WebM, OGG, MOV.");
         return true;
       }
 
       const fileBuffer = Buffer.from(base64, "base64");
-      if (!fileBuffer.length || fileBuffer.length > 80 * 1024 * 1024) {
-        sendError(res, 422, "Media invalide ou superieur a 80 Mo.");
+      if (!fileBuffer.length || fileBuffer.length > MAX_MEDIA_SIZE) {
+        sendError(res, 422, `Media invalide ou superieur a ${Math.round(MAX_MEDIA_SIZE / 1024 / 1024)} Mo.`);
         return true;
       }
 
@@ -916,6 +1211,7 @@ async function handleAdminApi(req, res, segments) {
       const base = path.basename(originalName, ext).slice(0, 70) || "image";
       const stored = `${Date.now()}-${randomToken(5)}-${base}${ext.toLowerCase()}`;
       fs.writeFileSync(path.join(MEDIA_DIR, stored), fileBuffer);
+      logAudit(req, "media_ajoute", stored, { mime, size: fileBuffer.length }, admin.email);
       sendJson(res, 201, {
         ok: true,
         file: { name: stored, url: publicMediaPath(stored), media_type: mediaTypeFromSource(stored), size: fileBuffer.length, updated_at: nowIso() },
@@ -932,6 +1228,7 @@ async function handleAdminApi(req, res, segments) {
         return true;
       }
       if (fs.existsSync(target)) fs.unlinkSync(target);
+      logAudit(req, "media_supprime", fileName, {}, admin.email);
       sendJson(res, 200, { ok: true, media: getMediaFiles() });
       return true;
     }
@@ -955,6 +1252,7 @@ async function handleAdminApi(req, res, segments) {
         normalizeText(body.icon) || "clipboard-check",
         Number(body.sort_order || 0)
       );
+      logAudit(req, "service_ajoute", "services", { title: normalizeText(body.title) }, admin.email);
       sendJson(res, 201, { ok: true, services: getServices() });
       return true;
     }
@@ -980,12 +1278,15 @@ async function handleAdminApi(req, res, segments) {
         Number(body.sort_order || 0),
         id
       );
+      logAudit(req, "service_modifie", `service:${id}`, { title: normalizeText(body.title) || current.title }, admin.email);
       sendJson(res, 200, { ok: true, services: getServices() });
       return true;
     }
 
     if (req.method === "DELETE" && segments[3]) {
-      db.prepare("DELETE FROM services WHERE id = ?").run(Number(segments[3]));
+      const id = Number(segments[3]);
+      db.prepare("DELETE FROM services WHERE id = ?").run(id);
+      logAudit(req, "service_supprime", `service:${id}`, {}, admin.email);
       sendJson(res, 200, { ok: true, services: getServices() });
       return true;
     }
@@ -1009,6 +1310,7 @@ async function handleAdminApi(req, res, segments) {
         body.highlighted === "1" || body.highlighted === 1 || body.highlighted === true ? 1 : 0,
         Number(body.sort_order || 0)
       );
+      logAudit(req, "tarif_ajoute", "pricing", { title: normalizeText(body.title) }, admin.email);
       sendJson(res, 201, { ok: true, pricing: getPricing() });
       return true;
     }
@@ -1034,12 +1336,15 @@ async function handleAdminApi(req, res, segments) {
         Number(body.sort_order || 0),
         id
       );
+      logAudit(req, "tarif_modifie", `pricing:${id}`, { title: normalizeText(body.title) || current.title }, admin.email);
       sendJson(res, 200, { ok: true, pricing: getPricing() });
       return true;
     }
 
     if (req.method === "DELETE" && segments[3]) {
-      db.prepare("DELETE FROM pricing WHERE id = ?").run(Number(segments[3]));
+      const id = Number(segments[3]);
+      db.prepare("DELETE FROM pricing WHERE id = ?").run(id);
+      logAudit(req, "tarif_supprime", `pricing:${id}`, {}, admin.email);
       sendJson(res, 200, { ok: true, pricing: getPricing() });
       return true;
     }
@@ -1069,6 +1374,7 @@ async function handleAdminApi(req, res, segments) {
         stamp,
         stamp
       );
+      logAudit(req, "galerie_ajoutee", "gallery", { title, mediaType }, admin.email);
       sendJson(res, 201, { ok: true, gallery: getGalleryItems() });
       return true;
     }
@@ -1097,12 +1403,15 @@ async function handleAdminApi(req, res, segments) {
         nowIso(),
         id
       );
+      logAudit(req, "galerie_modifiee", `gallery:${id}`, { title: normalizeText(body.title) || current.title, mediaType }, admin.email);
       sendJson(res, 200, { ok: true, gallery: getGalleryItems() });
       return true;
     }
 
     if (req.method === "DELETE" && segments[3]) {
-      db.prepare("DELETE FROM gallery_items WHERE id = ?").run(Number(segments[3]));
+      const id = Number(segments[3]);
+      db.prepare("DELETE FROM gallery_items WHERE id = ?").run(id);
+      logAudit(req, "galerie_supprimee", `gallery:${id}`, {}, admin.email);
       sendJson(res, 200, { ok: true, gallery: getGalleryItems() });
       return true;
     }
@@ -1134,6 +1443,7 @@ async function handleAdminApi(req, res, segments) {
         normalizeText(body.published_at) || stamp,
         stamp
       );
+      logAudit(req, "article_ajoute", "blog", { title, slug }, admin.email);
       sendJson(res, 201, { ok: true, posts: getBlogPosts() });
       return true;
     }
@@ -1163,22 +1473,68 @@ async function handleAdminApi(req, res, segments) {
         nowIso(),
         id
       );
+      logAudit(req, "article_modifie", `blog:${id}`, { title: normalizeText(body.title) || current.title, slug }, admin.email);
       sendJson(res, 200, { ok: true, posts: getBlogPosts() });
       return true;
     }
 
     if (req.method === "DELETE" && segments[3]) {
-      db.prepare("DELETE FROM blog_posts WHERE id = ?").run(Number(segments[3]));
+      const id = Number(segments[3]);
+      db.prepare("DELETE FROM blog_posts WHERE id = ?").run(id);
+      logAudit(req, "article_supprime", `blog:${id}`, {}, admin.email);
       sendJson(res, 200, { ok: true, posts: getBlogPosts() });
       return true;
     }
   }
 
   if (segments[2] === "companies") {
+    if (req.method === "POST" && segments[3] === "import") {
+      const body = await readJson(req);
+      const rows = parseCompanyImport(body.text || "");
+      if (!rows.length) {
+        sendError(res, 422, "Aucune societe valide trouvee dans l'import.");
+        return true;
+      }
+      const stamp = nowIso();
+      const upsert = db.prepare(`
+        INSERT INTO companies (name, certificate_number, status, sector, issued_at, expires_at, certificate_url, notes, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, '', ?, ?)
+        ON CONFLICT(certificate_number) DO UPDATE SET
+          name = excluded.name,
+          status = excluded.status,
+          sector = excluded.sector,
+          issued_at = excluded.issued_at,
+          expires_at = excluded.expires_at,
+          notes = excluded.notes,
+          updated_at = excluded.updated_at
+      `);
+      for (const row of rows) {
+        upsert.run(
+          row.name,
+          normalizeText(row.certificate_number).toUpperCase(),
+          row.status,
+          row.sector,
+          row.issued_at,
+          row.expires_at,
+          row.notes,
+          stamp
+        );
+      }
+      logAudit(req, "societes_importees", "companies", { count: rows.length }, admin.email);
+      sendJson(res, 200, { ok: true, imported: rows.length, companies: getCompanies({ limit: 500 }) });
+      return true;
+    }
+
     if (req.method === "POST") {
       const body = await readJson(req);
       if (!normalizeText(body.name) || !normalizeText(body.certificate_number)) {
         sendError(res, 422, "Nom et numero de certificat requis.");
+        return true;
+      }
+      const certificateNumber = normalizeText(body.certificate_number).toUpperCase();
+      const exists = db.prepare("SELECT id FROM companies WHERE certificate_number = ?").get(certificateNumber);
+      if (exists) {
+        sendError(res, 409, "Ce numero de certificat existe deja. Utilise Modifier pour mettre a jour la societe.");
         return true;
       }
       db.prepare(`
@@ -1186,8 +1542,8 @@ async function handleAdminApi(req, res, segments) {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         normalizeText(body.name),
-        normalizeText(body.certificate_number).toUpperCase(),
-        normalizeText(body.status) || "Certifiee",
+        certificateNumber,
+        normalizeCompanyStatus(body.status),
         normalizeText(body.sector),
         normalizeText(body.issued_at),
         normalizeText(body.expires_at),
@@ -1195,21 +1551,27 @@ async function handleAdminApi(req, res, segments) {
         normalizeText(body.notes),
         nowIso()
       );
+      logAudit(req, "societe_ajoutee", certificateNumber, { name: normalizeText(body.name) }, admin.email);
       sendJson(res, 201, { ok: true, companies: getCompanies({ limit: 500 }) });
       return true;
     }
 
     if (req.method === "PUT" && segments[3]) {
       const id = Number(segments[3]);
+      const current = db.prepare("SELECT * FROM companies WHERE id = ?").get(id);
+      if (!current) {
+        sendError(res, 404, "Societe introuvable.");
+        return true;
+      }
       const body = await readJson(req);
       db.prepare(`
         UPDATE companies
         SET name = ?, certificate_number = ?, status = ?, sector = ?, issued_at = ?, expires_at = ?, certificate_url = ?, notes = ?, updated_at = ?
         WHERE id = ?
       `).run(
-        normalizeText(body.name),
-        normalizeText(body.certificate_number).toUpperCase(),
-        normalizeText(body.status) || "Certifiee",
+        normalizeText(body.name) || current.name,
+        normalizeText(body.certificate_number).toUpperCase() || current.certificate_number,
+        normalizeCompanyStatus(body.status),
         normalizeText(body.sector),
         normalizeText(body.issued_at),
         normalizeText(body.expires_at),
@@ -1218,12 +1580,15 @@ async function handleAdminApi(req, res, segments) {
         nowIso(),
         id
       );
+      logAudit(req, "societe_modifiee", `company:${id}`, { name: normalizeText(body.name) || current.name }, admin.email);
       sendJson(res, 200, { ok: true, companies: getCompanies({ limit: 500 }) });
       return true;
     }
 
     if (req.method === "DELETE" && segments[3]) {
-      db.prepare("DELETE FROM companies WHERE id = ?").run(Number(segments[3]));
+      const id = Number(segments[3]);
+      db.prepare("DELETE FROM companies WHERE id = ?").run(id);
+      logAudit(req, "societe_supprimee", `company:${id}`, {}, admin.email);
       sendJson(res, 200, { ok: true, companies: getCompanies({ limit: 500 }) });
       return true;
     }
@@ -1231,10 +1596,11 @@ async function handleAdminApi(req, res, segments) {
 
   if (segments[2] === "documents") {
     if (req.method === "POST") {
-      const body = await readJson(req);
+      const body = await readJson(req, jsonUploadLimit(MAX_DOCUMENT_SIZE));
       const title = normalizeText(body.title);
       const code = normalizeText(body.code);
       const originalName = safeFileName(body.fileName || body.original_filename);
+      const mime = normalizeText(body.mimeType) || mimeType(originalName);
       const base64 = normalizeText(body.base64 || "").replace(/^data:[^;]+;base64,/, "");
 
       if (!title || !code || !base64) {
@@ -1242,9 +1608,14 @@ async function handleAdminApi(req, res, segments) {
         return true;
       }
 
+      if (!isBase64(base64) || !isAllowedDocument(mime, originalName)) {
+        sendError(res, 422, "Type de document refuse. Formats acceptes: PDF, Office, TXT, CSV, images WebP/JPG/PNG et ZIP.");
+        return true;
+      }
+
       const fileBuffer = Buffer.from(base64, "base64");
-      if (!fileBuffer.length || fileBuffer.length > 25 * 1024 * 1024) {
-        sendError(res, 422, "Fichier invalide ou superieur a 25 Mo.");
+      if (!fileBuffer.length || fileBuffer.length > MAX_DOCUMENT_SIZE) {
+        sendError(res, 422, `Fichier invalide ou superieur a ${Math.round(MAX_DOCUMENT_SIZE / 1024 / 1024)} Mo.`);
         return true;
       }
 
@@ -1262,13 +1633,14 @@ async function handleAdminApi(req, res, segments) {
         normalizeText(body.category) || "Document",
         originalName,
         stored,
-        normalizeText(body.mimeType) || "application/octet-stream",
+        mime,
         fileBuffer.length,
         hashAccessCode(code),
         body.status === "inactive" ? "inactive" : "active",
         stamp,
         stamp
       );
+      logAudit(req, "document_ajoute", "documents", { title, file: originalName, size: fileBuffer.length }, admin.email);
       sendJson(res, 201, { ok: true, documents: getDocuments() });
       return true;
     }
@@ -1280,21 +1652,52 @@ async function handleAdminApi(req, res, segments) {
         sendError(res, 404, "Document introuvable.");
         return true;
       }
-      const body = await readJson(req);
+      const body = await readJson(req, jsonUploadLimit(MAX_DOCUMENT_SIZE));
       const codeHash = normalizeText(body.code) ? hashAccessCode(body.code) : current.code_hash;
+      let originalName = current.original_filename;
+      let storedName = current.stored_filename;
+      let mime = current.mime_type;
+      let size = current.size;
+
+      const base64 = normalizeText(body.base64 || "").replace(/^data:[^;]+;base64,/, "");
+      if (base64) {
+        originalName = safeFileName(body.fileName || body.original_filename || current.original_filename);
+        mime = normalizeText(body.mimeType) || mimeType(originalName);
+        if (!isBase64(base64) || !isAllowedDocument(mime, originalName)) {
+          sendError(res, 422, "Type de document refuse. Formats acceptes: PDF, Office, TXT, CSV, images WebP/JPG/PNG et ZIP.");
+          return true;
+        }
+        const fileBuffer = Buffer.from(base64, "base64");
+        if (!fileBuffer.length || fileBuffer.length > MAX_DOCUMENT_SIZE) {
+          sendError(res, 422, `Fichier invalide ou superieur a ${Math.round(MAX_DOCUMENT_SIZE / 1024 / 1024)} Mo.`);
+          return true;
+        }
+        const ext = path.extname(originalName) || ".bin";
+        storedName = `${Date.now()}-${randomToken(8)}${ext}`;
+        fs.writeFileSync(path.join(UPLOAD_DIR, storedName), fileBuffer);
+        const oldPath = path.join(UPLOAD_DIR, current.stored_filename);
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        size = fileBuffer.length;
+      }
+
       db.prepare(`
         UPDATE documents
-        SET title = ?, description = ?, category = ?, code_hash = ?, status = ?, updated_at = ?
+        SET title = ?, description = ?, category = ?, original_filename = ?, stored_filename = ?, mime_type = ?, size = ?, code_hash = ?, status = ?, updated_at = ?
         WHERE id = ?
       `).run(
         normalizeText(body.title) || current.title,
         normalizeText(body.description),
         normalizeText(body.category) || "Document",
+        originalName,
+        storedName,
+        mime,
+        size,
         codeHash,
         body.status === "inactive" ? "inactive" : "active",
         nowIso(),
         id
       );
+      logAudit(req, "document_modifie", `document:${id}`, { title: normalizeText(body.title) || current.title, file: originalName }, admin.email);
       sendJson(res, 200, { ok: true, documents: getDocuments() });
       return true;
     }
@@ -1307,6 +1710,7 @@ async function handleAdminApi(req, res, segments) {
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
       }
       db.prepare("DELETE FROM documents WHERE id = ?").run(id);
+      logAudit(req, "document_supprime", `document:${id}`, {}, admin.email);
       sendJson(res, 200, { ok: true, documents: getDocuments() });
       return true;
     }
@@ -1333,6 +1737,11 @@ async function handleApi(req, res, url) {
     }
 
     if (segments[0] === "api" && segments[1] === "companies" && segments[2] === "search") {
+      const limit = checkRateLimit(req, "company-search", 80, 60 * 1000);
+      if (!limit.ok) {
+        sendError(res, 429, "Trop de recherches. Reessayez dans un instant.", { "Retry-After": String(limit.retryAfter) });
+        return;
+      }
       sendJson(res, 200, { companies: searchCompanies(url.searchParams.get("q") || "") });
       return;
     }
@@ -1347,8 +1756,9 @@ async function handleApi(req, res, url) {
 
     sendError(res, 404, "Endpoint introuvable.");
   } catch (error) {
+    console.error(error);
     const message = error && error.message ? error.message : "Erreur serveur.";
-    sendError(res, 500, message);
+    sendError(res, 500, process.env.NODE_ENV === "production" ? "Erreur serveur." : message);
   }
 }
 
@@ -1359,6 +1769,9 @@ setInterval(() => {
   }
   for (const [token, access] of documentTokens.entries()) {
     if (access.expiresAt < now) documentTokens.delete(token);
+  }
+  for (const [key, entry] of rateLimits.entries()) {
+    if (entry.resetAt < now) rateLimits.delete(key);
   }
 }, 10 * 60 * 1000).unref();
 
