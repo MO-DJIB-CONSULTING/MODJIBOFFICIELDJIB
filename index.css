@@ -102,13 +102,11 @@ select {
   border-radius: 8px;
 }
 
-.main-nav a:hover,
-.main-nav .admin-link {
+.main-nav a:hover {
   background: rgba(255, 255, 255, 0.14);
 }
 
-.site-header.is-scrolled .main-nav a:hover,
-.site-header.is-scrolled .main-nav .admin-link {
+.site-header.is-scrolled .main-nav a:hover {
   background: var(--mint);
 }
 
@@ -796,8 +794,7 @@ select:focus {
     display: grid;
   }
 
-  .main-nav a,
-  .main-nav .admin-link {
+  .main-nav a {
     background: transparent;
   }
 

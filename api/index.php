@@ -86,10 +86,13 @@ function route_request(string $method, array $segments): void {
 }
 
 function security_headers(): void {
+    $csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: data:; frame-src https://www.youtube.com https://www.youtube-nocookie.com; connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'; upgrade-insecure-requests";
+    header("Content-Security-Policy: " . $csp);
     header("X-Content-Type-Options: nosniff");
     header("X-Frame-Options: SAMEORIGIN");
     header("Referrer-Policy: strict-origin-when-cross-origin");
     header("Permissions-Policy: camera=(), microphone=(), geolocation=()");
+    header("Strict-Transport-Security: max-age=31536000; includeSubDomains");
 }
 
 function send_json(int $status, array $payload, array $headers = []): void {

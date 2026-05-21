@@ -1,0 +1,7 @@
+User-agent: *
+Disallow: /admin
+Disallow: /api/admin
+Disallow: /private-data
+Allow: /
+
+Sitemap: https://modjibconsulting.online/sitemap.xml
