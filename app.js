@@ -249,6 +249,115 @@ function renderGallery(items) {
   `).join("");
 }
 
+function chatbotAnswer(message, content, payload) {
+  const text = message.toLowerCase();
+  const companyCount = (payload.companies || []).length;
+  const documentCount = (payload.documents || []).length;
+  if (/(devis|tarif|prix|pricing|cout|coût|payer|offre)/.test(text)) {
+    return "Pour un devis rapide, utilisez WhatsApp ou envoyez un email. Les offres sont adaptees selon audit, formation, HACCP, suivi qualite ou certification.";
+  }
+  if (/(certificat|certification|societe|société|reference|référence|numero|numéro)/.test(text)) {
+    return `Vous pouvez verifier une societe referencee avec son nom ou son numero de certificat dans la section Certificats. La base publique affiche actuellement ${companyCount} societe(s) referencee(s).`;
+  }
+  if (/(document|code|telecharger|télécharger|pdf|fichier|base)/.test(text)) {
+    return `Les documents proteges demandent un code d'acces fourni par MO-DJIB Consulting. ${documentCount} document(s) actif(s) sont disponibles dans l'espace Documents.`;
+  }
+  if (/(haccp|audit|formation|hygiene|hygiène|qualite|qualité|tox|restaurant|hotel|hôtel)/.test(text)) {
+    return "MO-DJIB Consulting accompagne les audits, formations HACCP, hygiene alimentaire, dossiers qualite, suivi documentaire et certification des etablissements.";
+  }
+  if (/(contact|whatsapp|mail|email|telephone|téléphone|adresse|rendez|rdv)/.test(text)) {
+    return `Contact direct: ${content.contactEmail || "modjibconsulting@gmail.com"}${content.phone ? ` - ${content.phone}` : ""}. Le bouton WhatsApp est disponible dans cette fenetre.`;
+  }
+  if (/(galerie|photo|video|vidéo|youtube|image)/.test(text)) {
+    return "La galerie regroupe les images, videos et liens YouTube ajoutes depuis l'espace admin. Ouvrez la page Galerie pour tout consulter.";
+  }
+  return "Je peux vous orienter vers un devis, une verification de certificat, un document protege, une formation HACCP ou un contact direct avec MO-DJIB Consulting.";
+}
+
+function addChatMessage(root, message, sender = "bot") {
+  const item = document.createElement("div");
+  item.className = `chat-message ${sender}`;
+  item.textContent = message;
+  root.appendChild(item);
+  root.scrollTop = root.scrollHeight;
+}
+
+function initChatbot(content, payload) {
+  if (document.querySelector("[data-chatbot]")) return;
+  const whatsapp = content.whatsappUrl || "https://wa.me/message/WZHC7CEMDMMXL1";
+  const email = content.contactEmail || "modjibconsulting@gmail.com";
+  const widget = document.createElement("section");
+  widget.className = "chatbot";
+  widget.dataset.chatbot = "";
+  widget.innerHTML = `
+    <button class="chatbot-toggle" type="button" aria-expanded="false" data-chat-toggle>Assistance</button>
+    <div class="chatbot-panel" data-chat-panel hidden>
+      <header>
+        <div>
+          <strong>Assistant MO-DJIB</strong>
+          <span>Reponse immediate</span>
+        </div>
+        <button type="button" aria-label="Fermer" data-chat-close>x</button>
+      </header>
+      <div class="chat-messages" data-chat-messages></div>
+      <div class="chat-suggestions">
+        <button type="button" data-chat-suggestion="Je veux un devis">Devis</button>
+        <button type="button" data-chat-suggestion="Verifier un certificat">Certificat</button>
+        <button type="button" data-chat-suggestion="Acceder a un document protege">Documents</button>
+        <button type="button" data-chat-suggestion="Formation HACCP">HACCP</button>
+      </div>
+      <form data-chat-form>
+        <input name="message" placeholder="Ecrivez votre question" autocomplete="off">
+        <button type="submit">Envoyer</button>
+      </form>
+      <div class="chat-contact">
+        <a href="${escapeHtml(whatsapp)}" target="_blank" rel="noreferrer">WhatsApp</a>
+        <a href="mailto:${escapeHtml(email)}">Email</a>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(widget);
+
+  const panel = widget.querySelector("[data-chat-panel]");
+  const toggle = widget.querySelector("[data-chat-toggle]");
+  const messages = widget.querySelector("[data-chat-messages]");
+  const form = widget.querySelector("[data-chat-form]");
+  const input = form.elements.message;
+
+  function openChat() {
+    panel.hidden = false;
+    toggle.setAttribute("aria-expanded", "true");
+    input.focus();
+  }
+
+  function closeChat() {
+    panel.hidden = true;
+    toggle.setAttribute("aria-expanded", "false");
+  }
+
+  function respond(value) {
+    const message = value.trim();
+    if (!message) return;
+    addChatMessage(messages, message, "user");
+    window.setTimeout(() => addChatMessage(messages, chatbotAnswer(message, content, payload), "bot"), 180);
+  }
+
+  toggle.addEventListener("click", () => (panel.hidden ? openChat() : closeChat()));
+  widget.querySelector("[data-chat-close]").addEventListener("click", closeChat);
+  widget.querySelectorAll("[data-chat-suggestion]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openChat();
+      respond(button.dataset.chatSuggestion || "");
+    });
+  });
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    respond(input.value);
+    input.value = "";
+  });
+  addChatMessage(messages, "Bonjour, je suis l'assistant MO-DJIB. Posez une question ou choisissez un sujet.", "bot");
+}
+
 function bindSearch() {
   const form = document.querySelector("[data-company-search]");
   if (!form) return;
@@ -305,8 +414,10 @@ async function boot() {
     renderDocuments(payload.documents || []);
     renderGallery(payload.gallery || []);
     renderPosts(payload.posts || []);
+    initChatbot(payload.content || {}, payload);
   } catch (error) {
-    document.querySelector("[data-services]").innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    const serviceRoot = document.querySelector("[data-services]");
+    if (serviceRoot) serviceRoot.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
   }
 }
 

@@ -83,6 +83,15 @@ function toDatetimeLocal(value) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }
 
+function formatAdminDate(value) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return "Date non renseignee";
+  return date.toLocaleString("fr-FR", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  });
+}
+
 async function api(path, options = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs || 12000);
@@ -102,10 +111,10 @@ async function api(path, options = {}) {
     return payload;
   } catch (error) {
     if (error.name === "AbortError") {
-      throw new Error("Le serveur local ne repond pas. Relance npm start puis recharge cette page.");
+      throw new Error("Le serveur ne repond pas. Recharge la page ou verifie l'hebergement.");
     }
     if (error instanceof TypeError) {
-      throw new Error("Impossible de joindre l'API locale. Verifie que http://localhost:3000 est bien lance.");
+      throw new Error("Impossible de joindre l'API du site.");
     }
     throw error;
   } finally {
@@ -147,35 +156,80 @@ function renderStats() {
     ["gallery", "Galerie"],
     ["media", "Images"]
   ];
-  root.innerHTML = labels.map(([key, label]) => `
-    <article class="stat-card">
-      <span>${label}</span>
-      <strong>${state.stats[key] ?? 0}</strong>
-    </article>
-  `).join("");
+  if (root) {
+    root.innerHTML = labels.map(([key, label]) => `
+      <article class="stat-card">
+        <span>${label}</span>
+        <strong>${state.stats[key] ?? 0}</strong>
+      </article>
+    `).join("");
+  }
 
-  document.querySelector("[data-summary]").innerHTML = `
-    <div class="list-item">
-      <h3>Premier service</h3>
-      <p>${escapeHtml(state.services[0]?.title || "Aucun service")}</p>
-    </div>
-    <div class="list-item">
-      <h3>Offre mise en avant</h3>
-      <p>${escapeHtml(state.pricing.find((plan) => plan.highlighted)?.title || state.pricing[0]?.title || "Aucune offre")}</p>
-    </div>
-    <div class="list-item">
-      <h3>Dernier article</h3>
-      <p>${escapeHtml(state.posts[0]?.title || "Aucun article")}</p>
-    </div>
-    <div class="list-item">
-      <h3>Derniere societe referencee</h3>
-      <p>${escapeHtml(state.companies[0]?.name || "Aucune societe")}</p>
-    </div>
-    <div class="list-item">
-      <h3>Dernier document</h3>
-      <p>${escapeHtml(state.documents[0]?.title || "Aucun document")}</p>
-    </div>
-  `;
+  const quickRoot = document.querySelector("[data-quick-actions]");
+  if (quickRoot) {
+    quickRoot.innerHTML = [
+      ["content", "Personnaliser"],
+      ["media", "Ajouter media"],
+      ["gallery", "Galerie"],
+      ["blog", "Actualite"],
+      ["companies", "Societe"],
+      ["documents", "Document protege"]
+    ].map(([tab, label]) => `<button class="button secondary" type="button" data-go-tab="${tab}">${label}</button>`).join("");
+  }
+
+  const activeDocs = state.documents.filter((doc) => doc.status === "active").length;
+  const draftPosts = state.posts.filter((post) => post.status === "draft").length;
+  const hiddenGallery = state.gallery.filter((item) => item.status === "draft").length;
+  const lastUpdate = state.content.lastContentUpdate || state.auditLogs[0]?.created_at || new Date().toISOString();
+  const mediaSize = state.media.reduce((total, file) => total + Number(file.size || 0), 0);
+  const healthRoot = document.querySelector("[data-health-cards]");
+  if (healthRoot) {
+    healthRoot.innerHTML = `
+      <article class="status-card good">
+        <span>Derniere actualisation</span>
+        <strong>${escapeHtml(formatAdminDate(lastUpdate))}</strong>
+      </article>
+      <article class="status-card">
+        <span>Documents publics actifs</span>
+        <strong>${activeDocs}/${state.documents.length}</strong>
+      </article>
+      <article class="status-card">
+        <span>Contenus masques</span>
+        <strong>${draftPosts + hiddenGallery}</strong>
+        <small>${draftPosts} article(s), ${hiddenGallery} media(s)</small>
+      </article>
+      <article class="status-card">
+        <span>Mediatheque</span>
+        <strong>${Math.max(0, Math.round(mediaSize / 1024 / 1024))} Mo</strong>
+      </article>
+    `;
+  }
+
+  const summaryRoot = document.querySelector("[data-summary]");
+  if (summaryRoot) {
+    summaryRoot.innerHTML = `
+      <div class="list-item">
+        <h3>Premier service</h3>
+        <p>${escapeHtml(state.services[0]?.title || "Aucun service")}</p>
+      </div>
+      <div class="list-item">
+        <h3>Offre mise en avant</h3>
+        <p>${escapeHtml(state.pricing.find((plan) => plan.highlighted)?.title || state.pricing[0]?.title || "Aucune offre")}</p>
+      </div>
+      <div class="list-item">
+        <h3>Dernier article</h3>
+        <p>${escapeHtml(state.posts[0]?.title || "Aucun article")}</p>
+      </div>
+      <div class="list-item">
+        <h3>Derniere societe referencee</h3>
+        <p>${escapeHtml(state.companies[0]?.name || "Aucune societe")}</p>
+      </div>
+      <div class="list-item">
+        <h3>Dernier document</h3>
+        <p>${escapeHtml(state.documents[0]?.title || "Aucun document")}</p>
+      </div>
+    `;
+  }
 }
 
 function renderContentForm() {
@@ -579,6 +633,7 @@ function renderAll() {
   renderCompanyList();
   renderDocumentList();
   renderAuditLogs();
+  applyAdminSearch();
 }
 
 async function refresh() {
@@ -601,13 +656,46 @@ async function refresh() {
   renderAll();
 }
 
+function activateTab(tab) {
+  document.querySelectorAll("[data-tab]").forEach((node) => {
+    node.classList.toggle("active", node.dataset.tab === tab);
+  });
+  document.querySelectorAll("[data-panel]").forEach((panel) => {
+    panel.classList.toggle("active", panel.dataset.panel === tab);
+  });
+  applyAdminSearch();
+}
+
 function bindTabs() {
   document.querySelector("[data-tabs]").addEventListener("click", (event) => {
     const button = event.target.closest("[data-tab]");
     if (!button) return;
-    document.querySelectorAll("[data-tab]").forEach((node) => node.classList.toggle("active", node === button));
-    document.querySelectorAll("[data-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.panel === button.dataset.tab));
+    activateTab(button.dataset.tab);
   });
+
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-go-tab]");
+    if (!button) return;
+    activateTab(button.dataset.goTab);
+    document.querySelector(".workspace")?.scrollTo({ top: 0, behavior: "smooth" });
+  });
+}
+
+function applyAdminSearch() {
+  const input = document.querySelector("[data-admin-search]");
+  const panel = document.querySelector("[data-panel].active");
+  if (!input || !panel) return;
+  const query = input.value.trim().toLowerCase();
+  const items = panel.querySelectorAll(".list-item, .media-card, .gallery-admin-card, .stat-card, .status-card");
+  items.forEach((item) => {
+    item.classList.toggle("is-filtered-out", Boolean(query) && !item.textContent.toLowerCase().includes(query));
+  });
+}
+
+function bindAdminSearch() {
+  const input = document.querySelector("[data-admin-search]");
+  if (!input) return;
+  input.addEventListener("input", applyAdminSearch);
 }
 
 function bindLogin() {
@@ -641,6 +729,61 @@ function bindLogin() {
   });
 }
 
+function bindPasswordReset() {
+  const panel = document.querySelector("[data-reset-form]");
+  const toggle = document.querySelector("[data-reset-toggle]");
+  const sendButton = document.querySelector("[data-send-reset-otp]");
+  const status = document.querySelector("[data-reset-status]");
+  if (!panel || !toggle || !sendButton || !status) return;
+
+  toggle.addEventListener("click", () => {
+    panel.hidden = !panel.hidden;
+    status.textContent = "";
+  });
+
+  sendButton.addEventListener("click", async () => {
+    const email = panel.elements.email.value.trim();
+    if (!email) {
+      status.textContent = "Renseigne l'email admin.";
+      return;
+    }
+    sendButton.disabled = true;
+    status.textContent = "Envoi de l'OTP...";
+    try {
+      const payload = await api("/api/admin/password/request-reset", {
+        method: "POST",
+        body: JSON.stringify({ email })
+      });
+      status.textContent = payload.message || "OTP envoye a l'email de securite.";
+    } catch (error) {
+      status.textContent = error.message;
+    } finally {
+      sendButton.disabled = false;
+    }
+  });
+
+  panel.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = formObject(panel);
+    if (data.newPassword !== data.confirmPassword) {
+      status.textContent = "La confirmation ne correspond pas.";
+      return;
+    }
+    status.textContent = "Verification de l'OTP...";
+    try {
+      await api("/api/admin/password/reset", {
+        method: "POST",
+        body: JSON.stringify(data)
+      });
+      panel.reset();
+      panel.hidden = true;
+      document.querySelector("[data-login-status]").textContent = "Mot de passe reinitialise. Connecte-toi avec le nouveau mot de passe.";
+    } catch (error) {
+      status.textContent = error.message;
+    }
+  });
+}
+
 function bindContent() {
   document.addEventListener("submit", async (event) => {
     if (!event.target.matches("[data-content-form]")) return;
@@ -653,7 +796,12 @@ function bindContent() {
         body: JSON.stringify({ content: formObject(event.target) })
       });
       state.content = payload.content || state.content;
+      document.querySelectorAll("[data-admin-logo]").forEach((node) => {
+        if (state.content.logoImage) node.src = state.content.logoImage;
+      });
+      renderStats();
       status.textContent = "Contenu mis a jour.";
+      notify("Contenu enregistre. Le site public affichera la nouvelle version au rechargement.", "success");
     } catch (error) {
       status.textContent = error.message;
     }
@@ -1132,7 +1280,9 @@ function bindDocuments() {
 
 async function boot() {
   bindTabs();
+  bindAdminSearch();
   bindLogin();
+  bindPasswordReset();
   bindContent();
   bindMedia();
   bindServices();

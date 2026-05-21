@@ -60,6 +60,40 @@ a {
   box-shadow: var(--shadow);
 }
 
+.login-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.link-button {
+  width: fit-content;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  color: var(--teal-dark);
+  background: transparent;
+  font-weight: 900;
+  text-align: left;
+  cursor: pointer;
+}
+
+.reset-panel {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(230, 244, 239, 0.72);
+}
+
+.reset-panel h2 {
+  font-size: 1.05rem;
+}
+
+.reset-panel p {
+  margin: 6px 0 2px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
 .eyebrow {
   margin: 0 0 10px;
   color: var(--gold);
@@ -242,6 +276,28 @@ select:focus {
   margin-bottom: 26px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.admin-search {
+  min-width: min(280px, 100%);
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.admin-search input {
+  margin-top: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .global-status {
   min-height: 0;
   margin: -12px 0 18px;
@@ -273,11 +329,56 @@ select:focus {
   display: block;
 }
 
+.dashboard-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  gap: 18px;
+  align-items: end;
+  margin-bottom: 18px;
+  padding: clamp(20px, 3vw, 30px);
+  border-radius: 8px;
+  color: var(--white);
+  background:
+    linear-gradient(115deg, rgba(21, 23, 22, 0.96), rgba(7, 95, 87, 0.9)),
+    url("images/haccpcertificationaudit.jpg") center / cover;
+  box-shadow: var(--shadow);
+}
+
+.dashboard-hero h2 {
+  max-width: 760px;
+  font-size: clamp(1.8rem, 3vw, 3rem);
+}
+
+.dashboard-hero p:not(.eyebrow) {
+  max-width: 700px;
+  margin: 12px 0 0;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.dashboard-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dashboard-actions .button.secondary {
+  color: var(--white);
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 18px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.15fr);
+  gap: 18px;
+  align-items: start;
 }
 
 .stat-card,
@@ -307,6 +408,40 @@ select:focus {
 
 .admin-card {
   padding: 22px;
+}
+
+.status-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.status-card {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.status-card span,
+.status-card small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.status-card strong {
+  font-size: 1.25rem;
+}
+
+.status-card.good {
+  border-color: rgba(0, 127, 115, 0.24);
+  background: var(--mint);
+}
+
+.is-filtered-out {
+  display: none !important;
 }
 
 .import-card {
@@ -541,8 +676,14 @@ select:focus {
   }
 
   .two-column,
-  .login-card {
+  .login-card,
+  .dashboard-hero,
+  .dashboard-grid {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-actions {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
 }
 
@@ -550,6 +691,16 @@ select:focus {
   .workspace-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .header-actions .button,
+  .admin-search {
+    width: 100%;
   }
 
   .tabs,

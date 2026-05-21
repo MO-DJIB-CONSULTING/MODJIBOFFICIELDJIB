@@ -31,11 +31,13 @@ const DB_PATH = path.resolve(ROOT_DIR, process.env.DATABASE_PATH || path.join(DA
 const SESSION_COOKIE = "mo_admin_session";
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "admin@modjibconsulting.com").toLowerCase();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "ChangeMoi2026!";
+const ADMIN_RESET_EMAIL = (process.env.ADMIN_RESET_EMAIL || "modjibconsulting@gmail.com").toLowerCase();
 const PORT = Number(process.env.PORT || 3000);
 const SYNC_ADMIN_PASSWORD = process.env.SYNC_ADMIN_PASSWORD !== "false";
 const PUBLIC_URL = normalizeText(process.env.PUBLIC_URL || "");
 const MAX_MEDIA_SIZE = Number(process.env.MAX_MEDIA_SIZE_MB || 80) * 1024 * 1024;
 const MAX_DOCUMENT_SIZE = Number(process.env.MAX_DOCUMENT_SIZE_MB || 25) * 1024 * 1024;
+const RESET_OTP_TTL_MS = 10 * 60 * 1000;
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -47,6 +49,7 @@ db.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;");
 const sessions = new Map();
 const documentTokens = new Map();
 const rateLimits = new Map();
+const passwordResetTokens = new Map();
 
 const documentExtensions = new Set([
   ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
@@ -235,6 +238,44 @@ function verifyPassword(password, stored) {
   const [salt, hash] = stored.split(":");
   const candidate = crypto.scryptSync(String(password), salt, 64);
   return crypto.timingSafeEqual(Buffer.from(hash, "hex"), candidate);
+}
+
+function isStrongPassword(password) {
+  return String(password || "").length >= 12
+    && /[A-Z]/.test(password)
+    && /[a-z]/.test(password)
+    && /[0-9]/.test(password);
+}
+
+function passwordPolicyMessage() {
+  return "Le nouveau mot de passe doit contenir au moins 12 caracteres avec majuscule, minuscule et chiffre.";
+}
+
+function resetOtpHash(email, otp) {
+  return crypto
+    .createHash("sha256")
+    .update(`${normalizeText(email).toLowerCase()}:${normalizeText(otp)}`)
+    .digest("hex");
+}
+
+function createOtp() {
+  return String(crypto.randomInt(100000, 1000000));
+}
+
+async function sendAdminResetOtpEmail(otp) {
+  const message = [
+    "MO-DJIB Consulting - Code OTP admin",
+    "",
+    `Code OTP: ${otp}`,
+    "Validite: 10 minutes.",
+    "",
+    "Si cette demande ne vient pas de vous, ignorez cet email et changez le mot de passe admin."
+  ].join("\n");
+  if (process.env.ADMIN_RESET_MAIL_LOG === "true") {
+    fs.appendFileSync(path.join(DATA_DIR, "admin-reset-otp.log"), `${nowIso()} ${ADMIN_RESET_EMAIL} ${otp}\n`);
+  }
+  console.info(`[MO-DJIB] OTP admin genere pour ${ADMIN_RESET_EMAIL}. Configure SMTP ou utilise le backend PHP en production pour l'envoi email.\n${message}`);
+  return false;
 }
 
 function initSchema() {
@@ -1052,6 +1093,86 @@ async function handleAdminApi(req, res, segments) {
     return true;
   }
 
+  if (req.method === "POST" && segments[2] === "password" && segments[3] === "request-reset") {
+    const limit = checkRateLimit(req, "admin-password-reset", 5, 15 * 60 * 1000);
+    if (!limit.ok) {
+      sendError(res, 429, "Trop de demandes OTP. Reessayez plus tard.", { "Retry-After": String(limit.retryAfter) });
+      return true;
+    }
+
+    const body = await readJson(req);
+    const email = normalizeText(body.email).toLowerCase();
+    const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+    if (user) {
+      const otp = createOtp();
+      passwordResetTokens.set(email, {
+        hash: resetOtpHash(email, otp),
+        expiresAt: Date.now() + RESET_OTP_TTL_MS,
+        attempts: 0,
+        userId: user.id
+      });
+      await sendAdminResetOtpEmail(otp);
+      logAudit(req, "otp_mot_de_passe_envoye", `user:${user.id}`, { resetEmail: ADMIN_RESET_EMAIL }, email);
+    } else {
+      logAudit(req, "otp_mot_de_passe_ignore", "admin", { email }, email);
+    }
+    sendJson(res, 200, {
+      ok: true,
+      message: "Si le compte existe, un OTP vient d'etre envoye a l'email de securite."
+    });
+    return true;
+  }
+
+  if (req.method === "POST" && segments[2] === "password" && segments[3] === "reset") {
+    const limit = checkRateLimit(req, "admin-password-confirm", 8, 15 * 60 * 1000);
+    if (!limit.ok) {
+      sendError(res, 429, "Trop de tentatives OTP. Reessayez plus tard.", { "Retry-After": String(limit.retryAfter) });
+      return true;
+    }
+
+    const body = await readJson(req);
+    const email = normalizeText(body.email).toLowerCase();
+    const otp = normalizeText(body.otp);
+    const newPassword = String(body.newPassword || "");
+    const record = passwordResetTokens.get(email);
+    const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+    if (!user || !record || record.expiresAt < Date.now()) {
+      passwordResetTokens.delete(email);
+      sendError(res, 400, "OTP expire ou invalide. Demande un nouveau code.");
+      return true;
+    }
+    if (!isStrongPassword(newPassword)) {
+      sendError(res, 422, passwordPolicyMessage());
+      return true;
+    }
+    if (!/^[0-9]{6}$/.test(otp) || !crypto.timingSafeEqual(Buffer.from(record.hash), Buffer.from(resetOtpHash(email, otp)))) {
+      record.attempts += 1;
+      if (record.attempts >= 5) passwordResetTokens.delete(email);
+      logAudit(req, "otp_mot_de_passe_refuse", `user:${user.id}`, {}, email);
+      sendError(res, 403, "OTP incorrect.");
+      return true;
+    }
+
+    const stamp = nowIso();
+    db.prepare("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?")
+      .run(hashPassword(newPassword), stamp, user.id);
+    db.prepare(`
+      INSERT INTO site_content (key, value, updated_at)
+      VALUES ('adminPasswordManagedAt', ?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    `).run(stamp, stamp);
+    passwordResetTokens.delete(email);
+    for (const [token, session] of sessions.entries()) {
+      if (session.user.id === user.id) sessions.delete(token);
+    }
+    clearRateLimit(req, "admin-password-confirm");
+    logAudit(req, "mot_de_passe_reinitialise_otp", `user:${user.id}`, {}, email);
+    sendJson(res, 200, { ok: true, message: "Mot de passe reinitialise." }, {
+      "Set-Cookie": sessionCookie("", 0, req)
+    });
+    return true;
+  }
+
   if (req.method === "POST" && segments[2] === "login") {
     const limit = checkRateLimit(req, "admin-login", 8, 15 * 60 * 1000);
     if (!limit.ok) {
@@ -1146,8 +1267,8 @@ async function handleAdminApi(req, res, segments) {
       return true;
     }
     const newPassword = String(body.newPassword || "");
-    if (newPassword.length < 12 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
-      sendError(res, 422, "Le nouveau mot de passe doit contenir au moins 12 caracteres avec majuscule, minuscule et chiffre.");
+    if (!isStrongPassword(newPassword)) {
+      sendError(res, 422, passwordPolicyMessage());
       return true;
     }
     const stamp = nowIso();

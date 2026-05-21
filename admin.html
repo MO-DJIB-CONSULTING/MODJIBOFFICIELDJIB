@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex,nofollow,noarchive">
     <title>Admin | MO-DJIB Consulting</title>
-    <link rel="stylesheet" href="admin.css?v=20260521-sec1">
+    <link rel="stylesheet" href="admin.css?v=20260521-admin2">
   </head>
   <body>
     <main class="login-screen" data-login-screen>
@@ -15,16 +15,39 @@
           <h1>Espace admin</h1>
           <p>Gestion du contenu, services, tarifs, blog, societes certifiees et documents proteges.</p>
         </div>
-        <form data-login-form>
-          <label>Email
-            <input name="email" type="email" value="admin@modjibconsulting.com" required>
-          </label>
-          <label>Mot de passe
-            <input name="password" type="password" placeholder="Mot de passe admin" required>
-          </label>
-          <button class="button primary" type="submit">Connexion</button>
-          <p class="form-status" data-login-status aria-live="polite"></p>
-        </form>
+        <div class="login-stack">
+          <form data-login-form>
+            <label>Email
+              <input name="email" type="email" value="admin@modjibconsulting.com" autocomplete="username" required>
+            </label>
+            <label>Mot de passe
+              <input name="password" type="password" placeholder="Mot de passe admin" autocomplete="current-password" required>
+            </label>
+            <button class="button primary" type="submit">Connexion</button>
+            <button class="link-button" type="button" data-reset-toggle>Mot de passe oublie ? Recevoir un OTP</button>
+            <p class="form-status" data-login-status aria-live="polite"></p>
+          </form>
+
+          <form class="reset-panel" data-reset-form hidden>
+            <h2>Recuperation admin</h2>
+            <p>Un code OTP est envoye a l'email de securite configure pour MO-DJIB Consulting.</p>
+            <label>Email admin
+              <input name="email" type="email" value="admin@modjibconsulting.com" autocomplete="username" required>
+            </label>
+            <button class="button secondary" type="button" data-send-reset-otp>Envoyer l'OTP</button>
+            <label>Code OTP
+              <input name="otp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="6 chiffres" autocomplete="one-time-code">
+            </label>
+            <label>Nouveau mot de passe
+              <input name="newPassword" type="password" minlength="12" autocomplete="new-password" placeholder="12 caracteres minimum">
+            </label>
+            <label>Confirmation
+              <input name="confirmPassword" type="password" minlength="12" autocomplete="new-password">
+            </label>
+            <button class="button primary" type="submit">Reinitialiser le mot de passe</button>
+            <p class="form-status" data-reset-status aria-live="polite"></p>
+          </form>
+        </div>
       </section>
     </main>
 
@@ -55,15 +78,34 @@
             <p class="eyebrow">Tableau de bord</p>
             <h1>Gestion MO-DJIB Consulting</h1>
           </div>
-          <a class="button secondary" href="/" target="_blank" rel="noreferrer">Voir le site</a>
+          <div class="header-actions">
+            <label class="admin-search">Recherche rapide
+              <input data-admin-search type="search" placeholder="Filtrer l'onglet ouvert">
+            </label>
+            <a class="button secondary" href="/" target="_blank" rel="noreferrer">Voir le site</a>
+          </div>
         </header>
         <p class="global-status" data-global-status aria-live="polite"></p>
 
         <section class="panel active" data-panel="overview">
+          <div class="dashboard-hero">
+            <div>
+              <p class="eyebrow">Centre de controle</p>
+              <h2>Un site modifiable en direct, protege et pret pour les clients.</h2>
+              <p>Surveille les contenus, publie une actualite, ajoute des medias ou protege un document sans quitter l'espace admin.</p>
+            </div>
+            <div class="dashboard-actions" data-quick-actions></div>
+          </div>
           <div class="stat-grid" data-stats></div>
-          <div class="admin-card">
-            <h2>Dernieres donnees</h2>
-            <div class="summary-grid" data-summary></div>
+          <div class="dashboard-grid">
+            <div class="admin-card">
+              <h2>Etat du site</h2>
+              <div class="status-grid" data-health-cards></div>
+            </div>
+            <div class="admin-card">
+              <h2>Dernieres donnees</h2>
+              <div class="summary-grid" data-summary></div>
+            </div>
           </div>
         </section>
 
@@ -329,6 +371,6 @@
       </main>
     </div>
 
-    <script src="admin.js?v=20260521-sec1" defer></script>
+    <script src="admin.js?v=20260521-admin2" defer></script>
   </body>
 </html>

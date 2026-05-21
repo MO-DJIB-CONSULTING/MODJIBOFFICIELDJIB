@@ -4,11 +4,14 @@ declare(strict_types=1);
 const DATA_DIR = __DIR__ . '/../private-data';
 const DB_FILE = DATA_DIR . '/database.json';
 const TOKENS_FILE = DATA_DIR . '/tokens.json';
+const RESET_FILE = DATA_DIR . '/password-reset.json';
 const DOCUMENT_DIR = DATA_DIR . '/documents';
 const MEDIA_DIR = __DIR__ . '/../images/admin-uploads';
 const SESSION_COOKIE = 'mo_admin_php';
+const ADMIN_RESET_EMAIL = 'modjibconsulting@gmail.com';
 const MAX_MEDIA_SIZE = 83886080;
 const MAX_DOCUMENT_SIZE = 26214400;
+const RESET_OTP_TTL = 600;
 
 ensure_dirs();
 start_secure_session();
@@ -149,6 +152,54 @@ function hash_access_code(string $code): string {
 
 function hash_admin_password(string $password, string $salt): string {
     return hash('sha256', $salt . ':' . $password);
+}
+
+function strong_password(string $password): bool {
+    return strlen($password) >= 12
+        && preg_match('/[A-Z]/', $password)
+        && preg_match('/[a-z]/', $password)
+        && preg_match('/[0-9]/', $password);
+}
+
+function password_policy_message(): string {
+    return 'Le nouveau mot de passe doit contenir au moins 12 caracteres avec majuscule, minuscule et chiffre.';
+}
+
+function reset_otp_hash(string $email, string $otp): string {
+    return hash('sha256', strtolower(text_value($email)) . ':' . text_value($otp));
+}
+
+function load_password_reset(): array {
+    if (!file_exists(RESET_FILE)) {
+        return [];
+    }
+    $data = json_decode((string)file_get_contents(RESET_FILE), true);
+    if (!is_array($data)) {
+        return [];
+    }
+    if ((int)($data['expiresAt'] ?? 0) < time()) {
+        @unlink(RESET_FILE);
+        return [];
+    }
+    return $data;
+}
+
+function save_password_reset(array $data): void {
+    file_put_contents(RESET_FILE, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX);
+}
+
+function send_admin_otp_email(string $otp): bool {
+    $subject = 'Code OTP admin MO-DJIB Consulting';
+    $message = "MO-DJIB Consulting - Recuperation admin\n\n"
+        . "Code OTP: " . $otp . "\n"
+        . "Validite: 10 minutes.\n\n"
+        . "Si cette demande ne vient pas de vous, ignorez cet email et changez le mot de passe admin.";
+    $headers = [
+        'From: MO-DJIB Consulting <no-reply@modjibconsulting.online>',
+        'Reply-To: modjibconsulting@gmail.com',
+        'Content-Type: text/plain; charset=UTF-8'
+    ];
+    return @mail(ADMIN_RESET_EMAIL, $subject, $message, implode("\r\n", $headers));
 }
 
 function load_db(): array {
@@ -315,6 +366,12 @@ function save_tokens(array $tokens): void {
 
 function handle_admin(string $method, array $segments): void {
     check_origin();
+    if ($method === 'POST' && ($segments[1] ?? '') === 'password' && ($segments[2] ?? '') === 'request-reset') {
+        handle_password_reset_request();
+    }
+    if ($method === 'POST' && ($segments[1] ?? '') === 'password' && ($segments[2] ?? '') === 'reset') {
+        handle_password_reset_confirm();
+    }
     if ($method === 'POST' && ($segments[1] ?? '') === 'login') {
         $body = read_json();
         $db = load_db();
@@ -425,6 +482,71 @@ function dashboard_payload(array $db, array $admin): array {
     ];
 }
 
+function handle_password_reset_request(): void {
+    $body = read_json();
+    $email = strtolower(text_value($body['email'] ?? ''));
+    $db = load_db();
+    $admin = $db['admin'] ?? [];
+    if ($email !== '' && $email === strtolower((string)($admin['email'] ?? ''))) {
+        $otp = (string)random_int(100000, 999999);
+        $sent = send_admin_otp_email($otp);
+        if (!$sent) {
+            audit('otp_mot_de_passe_email_echec', 'admin', ['resetEmail' => ADMIN_RESET_EMAIL], $email);
+            send_error(500, "L'envoi email est indisponible. Verifiez la configuration email de l'hebergement.");
+        }
+        save_password_reset([
+            'email' => $email,
+            'hash' => reset_otp_hash($email, $otp),
+            'expiresAt' => time() + RESET_OTP_TTL,
+            'attempts' => 0,
+            'createdAt' => now_iso()
+        ]);
+        audit('otp_mot_de_passe_envoye', 'admin', ['resetEmail' => ADMIN_RESET_EMAIL], $email);
+    } else {
+        audit('otp_mot_de_passe_ignore', 'admin', ['email' => $email], $email);
+    }
+    send_json(200, [
+        'ok' => true,
+        'message' => "Si le compte existe, un OTP vient d'etre envoye a l'email de securite."
+    ]);
+}
+
+function handle_password_reset_confirm(): void {
+    $body = read_json();
+    $email = strtolower(text_value($body['email'] ?? ''));
+    $otp = text_value($body['otp'] ?? '');
+    $new = (string)($body['newPassword'] ?? '');
+    $db = load_db();
+    $admin = $db['admin'] ?? [];
+    $reset = load_password_reset();
+    if ($email === '' || $email !== strtolower((string)($admin['email'] ?? '')) || empty($reset) || ($reset['email'] ?? '') !== $email) {
+        send_error(400, 'OTP expire ou invalide. Demandez un nouveau code.');
+    }
+    if (!strong_password($new)) {
+        send_error(422, password_policy_message());
+    }
+    if (!preg_match('/^[0-9]{6}$/', $otp) || !hash_equals((string)($reset['hash'] ?? ''), reset_otp_hash($email, $otp))) {
+        $reset['attempts'] = (int)($reset['attempts'] ?? 0) + 1;
+        if ($reset['attempts'] >= 5) {
+            @unlink(RESET_FILE);
+        } else {
+            save_password_reset($reset);
+        }
+        audit('otp_mot_de_passe_refuse', 'admin', [], $email);
+        send_error(403, 'OTP incorrect.');
+    }
+    $salt = random_token(16);
+    $db['admin']['password_salt'] = $salt;
+    $db['admin']['password_hash'] = hash_admin_password($new, $salt);
+    $db['content']['adminPasswordManagedAt'] = now_iso();
+    save_db($db);
+    @unlink(RESET_FILE);
+    $_SESSION = [];
+    session_destroy();
+    audit('mot_de_passe_reinitialise_otp', 'admin', [], $email);
+    send_json(200, ['ok' => true, 'message' => 'Mot de passe reinitialise.']);
+}
+
 function handle_password_update(array $adminUser): void {
     $body = read_json();
     $db = load_db();
@@ -434,8 +556,8 @@ function handle_password_update(array $adminUser): void {
         send_error(403, 'Mot de passe actuel incorrect.');
     }
     $new = (string)($body['newPassword'] ?? '');
-    if (strlen($new) < 12 || !preg_match('/[A-Z]/', $new) || !preg_match('/[a-z]/', $new) || !preg_match('/[0-9]/', $new)) {
-        send_error(422, 'Le nouveau mot de passe doit contenir au moins 12 caracteres avec majuscule, minuscule et chiffre.');
+    if (!strong_password($new)) {
+        send_error(422, password_policy_message());
     }
     $salt = random_token(16);
     $db['admin']['password_salt'] = $salt;
