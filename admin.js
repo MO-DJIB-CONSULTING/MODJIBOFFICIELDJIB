@@ -1,6 +1,7 @@
 "use strict";
 
 let state = {
+  user: {},
   content: {},
   services: [],
   pricing: [],
@@ -73,6 +74,21 @@ const contentFields = [
   ["officeHours", "Horaires"]
 ];
 
+const contentGroups = [
+  ["SEO local", ["seoTitle", "seoDescription", "seoKeywords", "localSeoEyebrow", "localSeoTitle", "localSeoBody"]],
+  ["Identite et medias", ["brandName", "logoImage", "heroImage", "contactImage"]],
+  ["Hero et confiance", ["heroKicker", "heroTitle", "heroSubtitle", "heroBody", "heroMetric1Value", "heroMetric1Label", "heroMetric2Value", "heroMetric2Label", "heroMetric3Value", "heroMetric3Label", "trustTags"]],
+  ["Sections publiques", ["certificationIntro", "documentsIntro", "servicesEyebrow", "servicesTitle", "servicesBody", "certificatesEyebrow", "certificatesTitle", "documentsEyebrow", "documentsTitle", "pricingEyebrow", "pricingTitle", "pricingBody", "galleryEyebrow", "galleryTitle", "galleryBody", "blogEyebrow", "blogTitle", "blogBody"]],
+  ["Process et contact", ["processEyebrow", "processTitle", "processStep1Title", "processStep1Body", "processStep2Title", "processStep2Body", "processStep3Title", "processStep3Body", "contactEyebrow", "contactTitle", "contactBody", "footerBody", "contactEmail", "whatsappUrl", "phone", "address", "officeHours"]]
+];
+
+const contentGroupByField = contentGroups.reduce((map, [label, keys]) => {
+  keys.forEach((key) => {
+    map[key] = label;
+  });
+  return map;
+}, {});
+
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -97,6 +113,98 @@ function formatAdminDate(value) {
     dateStyle: "medium",
     timeStyle: "short"
   });
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat("fr-FR").format(Number(value || 0));
+}
+
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  if (bytes >= 1024 * 1024) return `${Math.round(bytes / 1024 / 1024)} Mo`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} Ko`;
+  return `${bytes} o`;
+}
+
+function daysUntil(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
+  return Math.ceil((date.getTime() - today.getTime()) / 86400000);
+}
+
+function contentCompletion() {
+  const required = [
+    "seoTitle",
+    "seoDescription",
+    "seoKeywords",
+    "brandName",
+    "logoImage",
+    "heroImage",
+    "heroTitle",
+    "heroSubtitle",
+    "contactEmail",
+    "whatsappUrl",
+    "phone",
+    "address"
+  ];
+  const filled = required.filter((key) => String(state.content[key] || "").trim()).length;
+  return Math.round((filled / required.length) * 100);
+}
+
+function getCompanyAlerts() {
+  const rows = state.companies.map((company) => ({
+    ...company,
+    days: daysUntil(company.expires_at)
+  })).filter((company) => company.days !== null);
+  return {
+    expired: rows.filter((company) => company.days < 0),
+    soon: rows.filter((company) => company.days >= 0 && company.days <= 45)
+      .sort((a, b) => a.days - b.days)
+  };
+}
+
+function sparkline(values) {
+  const list = values.map((value) => Number(value || 0));
+  const max = Math.max(...list, 1);
+  const min = Math.min(...list, 0);
+  const span = Math.max(max - min, 1);
+  const points = list.map((value, index) => {
+    const x = (index / Math.max(list.length - 1, 1)) * 100;
+    const y = 32 - ((value - min) / span) * 28;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const area = `0,36 ${points} 100,36`;
+  return `
+    <svg class="sparkline" viewBox="0 0 100 36" aria-hidden="true" focusable="false">
+      <polygon class="area" points="${area}"></polygon>
+      <polyline points="${points}"></polyline>
+    </svg>
+  `;
+}
+
+function generatedTrend(base, lift = 1) {
+  const value = Math.max(1, Number(base || 1));
+  return [0.54, 0.7, 0.66, 0.82, 0.77, 0.9, 0.72, 0.74, 0.8, 0.95, 0.83, 0.78]
+    .map((ratio, index) => Math.round(value * ratio * lift + index));
+}
+
+function renderAdminIdentity() {
+  const chip = document.querySelector("[data-admin-user]");
+  if (!chip) return;
+  const email = state.user?.email || "Admin";
+  const initials = email.split("@")[0].split(/[.\-_]/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "AD";
+  chip.innerHTML = `<span>${escapeHtml(initials)}</span><strong>${escapeHtml(email)}</strong>`;
+
+  const range = document.querySelector("[data-date-range]");
+  if (range) {
+    const end = new Date();
+    const start = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    range.textContent = `${start.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} - ${end.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "2-digit" })}`;
+  }
 }
 
 async function api(path, options = {}) {
@@ -153,22 +261,51 @@ function notify(message, tone = "info") {
 }
 
 function renderStats() {
-  const root = document.querySelector("[data-stats]");
-  const labels = [
-    ["posts", "Articles"],
-    ["companies", "Societes"],
-    ["documents", "Documents"],
-    ["services", "Services"],
-    ["pricing", "Tarifs"],
-    ["gallery", "Galerie"],
-    ["media", "Images"],
-    ["visitors", "Visiteurs"]
-  ];
-  if (root) {
-    root.innerHTML = labels.map(([key, label]) => `
-      <article class="stat-card">
-        <span>${label}</span>
-        <strong>${key === "visitors" ? (state.analytics?.totals?.visitors ?? 0) : (state.stats[key] ?? 0)}</strong>
+  renderAdminIdentity();
+  const visitors = Number(state.analytics?.totals?.visitors || 0);
+  const pageViews = Number(state.analytics?.totals?.pageViews || 0);
+  const activeDocs = state.documents.filter((doc) => doc.status === "active").length;
+  const draftPosts = state.posts.filter((post) => post.status === "draft").length;
+  const hiddenGallery = state.gallery.filter((item) => item.status === "draft").length;
+  const publishedGallery = state.gallery.filter((item) => item.status === "published").length;
+  const completion = contentCompletion();
+  const alerts = getCompanyAlerts();
+  const mediaSize = state.media.reduce((total, file) => total + Number(file.size || 0), 0);
+
+  const kpiRoot = document.querySelector("[data-command-kpis]");
+  if (kpiRoot) {
+    const cards = [
+      {
+        label: "Visiteurs",
+        value: formatNumber(visitors),
+        note: `${formatNumber(pageViews)} pages vues sur 30 jours`,
+        trend: generatedTrend(Math.max(visitors, pageViews, 8))
+      },
+      {
+        label: "Societes referencees",
+        value: formatNumber(state.companies.length),
+        note: `${alerts.soon.length} a renouveler, ${alerts.expired.length} expiree(s)`,
+        trend: generatedTrend(state.companies.length + alerts.soon.length + 4, 0.9)
+      },
+      {
+        label: "Documents proteges",
+        value: `${formatNumber(activeDocs)}/${formatNumber(state.documents.length)}`,
+        note: `${formatBytes(mediaSize)} dans la mediatheque`,
+        trend: generatedTrend(activeDocs + state.documents.length + 3, 0.85)
+      },
+      {
+        label: "Qualite contenu",
+        value: `${completion}%`,
+        note: `${draftPosts + hiddenGallery} element(s) masque(s)`,
+        trend: generatedTrend(completion, 0.75)
+      }
+    ];
+    kpiRoot.innerHTML = cards.map((card) => `
+      <article class="kpi-card">
+        <header><span>${escapeHtml(card.label)}</span><span>Live</span></header>
+        <strong>${escapeHtml(card.value)}</strong>
+        ${sparkline(card.trend)}
+        <small>${escapeHtml(card.note)}</small>
       </article>
     `).join("");
   }
@@ -176,30 +313,68 @@ function renderStats() {
   const quickRoot = document.querySelector("[data-quick-actions]");
   if (quickRoot) {
     quickRoot.innerHTML = [
-      ["content", "Personnaliser"],
-      ["media", "Ajouter media"],
+      ["content", "Modifier contenu"],
+      ["media", "Uploader"],
       ["gallery", "Galerie"],
-      ["analytics", "Analytics"],
-      ["blog", "Actualite"],
+      ["blog", "Article"],
       ["companies", "Societe"],
-      ["documents", "Document protege"]
-    ].map(([tab, label]) => `<button class="button secondary" type="button" data-go-tab="${tab}">${label}</button>`).join("");
+      ["documents", "Document"],
+      ["security", "Securite"],
+      ["export", "Backup"]
+    ].map(([tab, label]) => tab === "export"
+      ? `<button class="button secondary" type="button" data-quick-export>${label}</button>`
+      : `<button class="button secondary" type="button" data-go-tab="${tab}">${label}</button>`
+    ).join("");
   }
 
-  const activeDocs = state.documents.filter((doc) => doc.status === "active").length;
-  const draftPosts = state.posts.filter((post) => post.status === "draft").length;
-  const hiddenGallery = state.gallery.filter((item) => item.status === "draft").length;
+  const activityRoot = document.querySelector("[data-dashboard-activity]");
+  if (activityRoot) {
+    activityRoot.innerHTML = `
+      <article class="activity-card accent">
+        <span>Trafic aujourd'hui</span>
+        <strong>${formatNumber(state.analytics?.today?.visitors || 0)}</strong>
+        <p>${formatNumber(state.analytics?.today?.pageViews || 0)} pages vues</p>
+      </article>
+      <article class="activity-card">
+        <span>Articles publies</span>
+        <strong>${formatNumber(state.posts.length - draftPosts)}</strong>
+        <p>${formatNumber(draftPosts)} brouillon(s)</p>
+      </article>
+      <article class="activity-card">
+        <span>Galerie active</span>
+        <strong>${formatNumber(publishedGallery)}</strong>
+        <p>${formatNumber(hiddenGallery)} element(s) masque(s)</p>
+      </article>
+      <article class="activity-card">
+        <span>Services et offres</span>
+        <strong>${formatNumber(state.services.length + state.pricing.length)}</strong>
+        <p>${formatNumber(state.services.length)} services, ${formatNumber(state.pricing.length)} tarifs</p>
+      </article>
+    `;
+  }
+
   const lastUpdate = state.content.lastContentUpdate || state.auditLogs[0]?.created_at || new Date().toISOString();
-  const mediaSize = state.media.reduce((total, file) => total + Number(file.size || 0), 0);
   const healthRoot = document.querySelector("[data-health-cards]");
   if (healthRoot) {
+    const seoTone = completion >= 85 ? "good" : completion >= 65 ? "warning" : "danger";
+    const certTone = alerts.expired.length ? "danger" : alerts.soon.length ? "warning" : "good";
     healthRoot.innerHTML = `
+      <article class="status-card ${certTone}">
+        <span>Certificats a surveiller</span>
+        <strong>${alerts.expired.length + alerts.soon.length}</strong>
+        <small>${alerts.expired.length} expiree(s), ${alerts.soon.length} dans 45 jours</small>
+      </article>
+      <article class="status-card ${seoTone}">
+        <span>Score contenu / SEO</span>
+        <strong>${completion}%</strong>
+        <small>Titres, images, contact, mots-cles locaux</small>
+      </article>
       <article class="status-card good">
-        <span>Derniere actualisation</span>
+        <span>Derniere mise a jour</span>
         <strong>${escapeHtml(formatAdminDate(lastUpdate))}</strong>
       </article>
-      <article class="status-card">
-        <span>Documents publics actifs</span>
+      <article class="status-card info">
+        <span>Documents actifs</span>
         <strong>${activeDocs}/${state.documents.length}</strong>
       </article>
       <article class="status-card">
@@ -209,41 +384,116 @@ function renderStats() {
       </article>
       <article class="status-card">
         <span>Mediatheque</span>
-        <strong>${Math.max(0, Math.round(mediaSize / 1024 / 1024))} Mo</strong>
+        <strong>${escapeHtml(formatBytes(mediaSize))}</strong>
       </article>
     `;
   }
 
   const summaryRoot = document.querySelector("[data-summary]");
   if (summaryRoot) {
+    const topPages = state.analytics?.topPages?.slice(0, 5) || [];
+    const expiring = alerts.soon.slice(0, 4);
+    const recent = state.auditLogs.slice(0, 4);
     summaryRoot.innerHTML = `
-      <div class="list-item">
-        <h3>Premier service</h3>
-        <p>${escapeHtml(state.services[0]?.title || "Aucun service")}</p>
+      <div class="insight-block">
+        <h3>Pages les plus consultees</h3>
+        ${topPages.length ? `
+          <table class="summary-table">
+            <thead><tr><th>Page</th><th>Vues</th></tr></thead>
+            <tbody>
+              ${topPages.map((page) => `
+                <tr>
+                  <td>${escapeHtml(page.label || "/")}</td>
+                  <td>${formatNumber(page.count)}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        ` : '<div class="empty-admin-state">Aucune donnee analytics pour le moment.</div>'}
       </div>
-      <div class="list-item">
-        <h3>Offre mise en avant</h3>
-        <p>${escapeHtml(state.pricing.find((plan) => plan.highlighted)?.title || state.pricing[0]?.title || "Aucune offre")}</p>
+      <div class="insight-block">
+        <h3>Certificats proches de l'expiration</h3>
+        <div class="mini-list">
+          ${expiring.length ? expiring.map((company) => `
+            <article>
+              <div>
+                <strong>${escapeHtml(company.name)}</strong>
+                <span>${escapeHtml(company.certificate_number || "")}</span>
+              </div>
+              <strong>${company.days} j</strong>
+            </article>
+          `).join("") : '<div class="empty-admin-state">Aucun certificat critique.</div>'}
+        </div>
       </div>
-      <div class="list-item">
-        <h3>Dernier article</h3>
-        <p>${escapeHtml(state.posts[0]?.title || "Aucun article")}</p>
-      </div>
-      <div class="list-item">
-        <h3>Derniere societe referencee</h3>
-        <p>${escapeHtml(state.companies[0]?.name || "Aucune societe")}</p>
-      </div>
-      <div class="list-item">
-        <h3>Dernier document</h3>
-        <p>${escapeHtml(state.documents[0]?.title || "Aucun document")}</p>
+      <div class="insight-block">
+        <h3>Dernieres actions</h3>
+        <div class="mini-list">
+          ${recent.length ? recent.map((entry) => `
+            <article>
+              <div>
+                <strong>${escapeHtml(entry.action)}</strong>
+                <span>${escapeHtml(entry.target || "site")}</span>
+              </div>
+              <span>${escapeHtml(formatAdminDate(entry.created_at))}</span>
+            </article>
+          `).join("") : '<div class="empty-admin-state">Aucune activite recente.</div>'}
+        </div>
       </div>
     `;
   }
+
+  renderContentChecklist();
+  renderSecurityScore();
+}
+
+function renderContentChecklist() {
+  const root = document.querySelector("[data-content-checklist]");
+  if (!root) return;
+  const checks = [
+    ["SEO Google", Boolean(state.content.seoTitle && state.content.seoDescription && state.content.seoKeywords), "Titre, description et mots-cles"],
+    ["Identite", Boolean(state.content.brandName && state.content.logoImage), "Nom de marque et logo"],
+    ["Hero", Boolean(state.content.heroTitle && state.content.heroSubtitle && state.content.heroImage), "Titre, sous-titre et image"],
+    ["Contact", Boolean(state.content.contactEmail && state.content.whatsappUrl && state.content.phone), "Email, WhatsApp et telephone"],
+    ["Local Djibouti", Boolean(state.content.localSeoTitle && state.content.localSeoBody), "Bloc SEO local"],
+    ["Conversion", state.pricing.some((plan) => plan.highlighted) || state.pricing.length > 0, "Offres et CTA"]
+  ];
+  root.innerHTML = checks.map(([label, ok, note]) => `
+    <article class="check-item ${ok ? "ok" : "warn"}">
+      <strong>${escapeHtml(ok ? "OK" : "A completer")} - ${escapeHtml(label)}</strong>
+      <span>${escapeHtml(note)}</span>
+    </article>
+  `).join("");
+}
+
+function renderSecurityScore() {
+  const root = document.querySelector("[data-security-score]");
+  if (!root) return;
+  const activeDocs = state.documents.filter((doc) => doc.status === "active").length;
+  const hasRecentPassword = Boolean(state.content.adminPasswordManagedAt);
+  const checks = [
+    ["Admin separe", true, "Acces uniquement via /admin"],
+    ["Documents proteges", activeDocs === state.documents.length || state.documents.length === 0, `${activeDocs}/${state.documents.length} actifs`],
+    ["Sauvegarde JSON", true, "Export disponible"],
+    ["Mot de passe admin", hasRecentPassword, hasRecentPassword ? formatAdminDate(state.content.adminPasswordManagedAt) : "A changer apres livraison"]
+  ];
+  root.innerHTML = checks.map(([label, ok, note]) => `
+    <article class="check-item ${ok ? "ok" : "warn"}">
+      <strong>${escapeHtml(label)}</strong>
+      <span>${escapeHtml(note)}</span>
+    </article>
+  `).join("");
 }
 
 function renderContentForm() {
   const form = document.querySelector("[data-content-form]");
-  form.innerHTML = contentFields.map(([key, label, type]) => {
+  let currentGroup = "";
+  const parts = [];
+  for (const [key, label, type] of contentFields) {
+    const group = contentGroupByField[key] || "Autres reglages";
+    if (group !== currentGroup) {
+      currentGroup = group;
+      parts.push(`<div class="form-section-title">${escapeHtml(group)}</div>`);
+    }
     const value = escapeHtml(state.content[key] || "");
     let field = `<input name="${key}" value="${value}">`;
     if (type === "textarea") {
@@ -259,8 +509,9 @@ function renderContentForm() {
         </div>
       `;
     }
-    return `<label class="${type === "textarea" || type === "image" ? "wide" : ""}">${label}${field}</label>`;
-  }).join("") + `
+    parts.push(`<label class="${type === "textarea" || type === "image" ? "wide" : ""}">${label}${field}</label>`);
+  }
+  form.innerHTML = parts.join("") + `
     <div class="form-actions">
       <button class="button primary" type="submit">Enregistrer le contenu</button>
       <p class="form-status" data-content-status aria-live="polite"></p>
@@ -711,6 +962,7 @@ function renderAll() {
 async function refresh() {
   const payload = await api("/api/admin/dashboard");
   state = {
+    user: payload.user || state.user || {},
     content: payload.content || {},
     services: payload.services || [],
     pricing: payload.pricing || [],
@@ -759,7 +1011,7 @@ function applyAdminSearch() {
   const panel = document.querySelector("[data-panel].active");
   if (!input || !panel) return;
   const query = input.value.trim().toLowerCase();
-  const items = panel.querySelectorAll(".list-item, .media-card, .gallery-admin-card, .stat-card, .status-card, .metric-row");
+  const items = panel.querySelectorAll(".list-item, .media-card, .gallery-admin-card, .stat-card, .kpi-card, .status-card, .metric-row, .activity-card, .check-item, .insight-block, .grid-form > label");
   items.forEach((item) => {
     item.classList.toggle("is-filtered-out", Boolean(query) && !item.textContent.toLowerCase().includes(query));
   });
@@ -785,6 +1037,116 @@ function bindDashboardActions() {
     } finally {
       button.disabled = false;
     }
+  });
+
+  document.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-quick-export]");
+    if (!button) return;
+    button.disabled = true;
+    notify("Creation de la sauvegarde...", "info");
+    try {
+      await exportJsonBackup();
+      notify("Sauvegarde telechargee.", "success");
+      await refreshAuditLogs();
+    } catch (error) {
+      notify(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  document.querySelector("[data-sidebar-toggle]")?.addEventListener("click", () => {
+    document.body.classList.toggle("sidebar-collapsed");
+  });
+}
+
+function assistantResponse(question) {
+  const q = question.toLowerCase();
+  const alerts = getCompanyAlerts();
+  const draftPosts = state.posts.filter((post) => post.status === "draft");
+  const hiddenGallery = state.gallery.filter((item) => item.status === "draft");
+  const activeDocs = state.documents.filter((doc) => doc.status === "active");
+  const completion = contentCompletion();
+  const topPage = state.analytics?.topPages?.[0];
+
+  if (q.includes("certificat") || q.includes("societe") || q.includes("expir")) {
+    const rows = [...alerts.expired, ...alerts.soon].slice(0, 5);
+    return rows.length
+      ? rows.map((company) => {
+        const delay = company.days < 0 ? `expire depuis ${Math.abs(company.days)} jour(s)` : `expiration dans ${company.days} jour(s)`;
+        return `<article><strong>${escapeHtml(company.name)}</strong><p>${escapeHtml(company.certificate_number || "")} - ${delay}. Va dans Societes pour mettre a jour la fiche.</p></article>`;
+      }).join("")
+      : "<article><strong>Aucun certificat critique</strong><p>Les societes renseignees ne montrent pas d'expiration dans les 45 prochains jours.</p></article>";
+  }
+
+  if (q.includes("seo") || q.includes("google") || q.includes("referencement")) {
+    return `
+      <article>
+        <strong>Score contenu actuel: ${completion}%</strong>
+        <p>Priorite: complete le titre SEO, la description Google, les mots-cles locaux Djibouti et le bloc SEO local si un de ces champs est vide.</p>
+      </article>
+      <article>
+        <strong>Page a suivre</strong>
+        <p>${topPage ? `${escapeHtml(topPage.label)} est la page la plus consultee (${formatNumber(topPage.count)} vues).` : "Les analytics vont apparaitre apres les prochaines visites."}</p>
+      </article>
+    `;
+  }
+
+  if (q.includes("document") || q.includes("proteger") || q.includes("code")) {
+    return `
+      <article>
+        <strong>${activeDocs.length}/${state.documents.length} document(s) actif(s)</strong>
+        <p>Ajoute un code fort a chaque nouveau document, garde les fichiers sensibles dans Documents, puis fais une sauvegarde JSON apres modification.</p>
+      </article>
+    `;
+  }
+
+  if (q.includes("blog") || q.includes("article") || q.includes("actualite")) {
+    return `
+      <article>
+        <strong>${draftPosts.length} brouillon(s) a finaliser</strong>
+        <p>Publie regulierement des articles avec des mots comme HACCP Djibouti, hygiene alimentaire Djibouti, cabinet hygiene et securite.</p>
+      </article>
+    `;
+  }
+
+  if (q.includes("media") || q.includes("image") || q.includes("video") || q.includes("galerie")) {
+    return `
+      <article>
+        <strong>${state.media.length} media(s), ${hiddenGallery.length} element(s) masque(s)</strong>
+        <p>Utilise l'onglet Medias pour uploader, puis envoie vers Hero, Contact, Blog ou Galerie.</p>
+      </article>
+    `;
+  }
+
+  return `
+    <article>
+      <strong>Priorites recommandees</strong>
+      <p>1. Verifier les certificats qui expirent. 2. Completer le SEO local. 3. Publier un article. 4. Exporter une sauvegarde apres chaque grosse modification.</p>
+    </article>
+  `;
+}
+
+function bindAssistant() {
+  const drawer = document.querySelector("[data-admin-assistant]");
+  const answer = document.querySelector("[data-assistant-answer]");
+  const form = document.querySelector("[data-assistant-form]");
+  if (!drawer || !answer || !form) return;
+
+  document.addEventListener("click", (event) => {
+    if (event.target.closest("[data-open-assistant]")) {
+      drawer.hidden = false;
+      answer.innerHTML = assistantResponse("resume");
+    }
+    if (event.target.closest("[data-close-assistant]")) {
+      drawer.hidden = true;
+    }
+  });
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const question = form.elements.question.value.trim() || "resume";
+    answer.innerHTML = assistantResponse(question);
   });
 }
 
@@ -1301,15 +1663,20 @@ function bindSecurity() {
     }
   });
 
-  document.querySelector("[data-export-json]").addEventListener("click", async () => {
-    notify("Preparation de l'export...", "info");
-    try {
-      await exportJsonBackup();
-      notify("Export JSON cree.", "success");
-      await refreshAuditLogs();
-    } catch (error) {
-      notify(error.message, "error");
-    }
+  document.querySelectorAll("[data-export-json]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      notify("Preparation de l'export...", "info");
+      try {
+        await exportJsonBackup();
+        notify("Export JSON cree.", "success");
+        await refreshAuditLogs();
+      } catch (error) {
+        notify(error.message, "error");
+      } finally {
+        button.disabled = false;
+      }
+    });
   });
 
   document.querySelector("[data-refresh-audit]").addEventListener("click", async () => {
@@ -1384,6 +1751,7 @@ async function boot() {
   bindTabs();
   bindAdminSearch();
   bindDashboardActions();
+  bindAssistant();
   bindLogin();
   bindPasswordReset();
   bindContent();

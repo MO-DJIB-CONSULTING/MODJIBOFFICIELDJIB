@@ -154,8 +154,8 @@ async function main() {
               url: location.href,
               panelVisible: !!shell && shell.hidden === false,
               loginHidden: !!login && login.hidden === true,
-              hasDashboardTitle: document.body.innerText.includes('Gestion MO-DJIB Consulting'),
-              hasTabs: ['Apercu','Contenu','Images','Galerie','Services','Tarifs','Blog','Societes','Documents','Securite'].every((text) => document.body.innerText.includes(text)),
+              hasDashboardTitle: document.body.innerText.includes('Vue generale MO-DJIB Consulting'),
+              hasTabs: ['Dashboard','Analytics','Contenu','Medias','Galerie','Services','Tarifs','Blog','Societes','Documents','Securite'].every((text) => document.body.innerText.includes(text)),
               status: document.querySelector('[data-login-status]')?.textContent || '',
               text: document.body.innerText.slice(0, 700)
             };

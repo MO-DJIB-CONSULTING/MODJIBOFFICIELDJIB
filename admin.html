@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex,nofollow,noarchive">
     <title>Admin | MO-DJIB Consulting</title>
-    <link rel="stylesheet" href="admin.css?v=20260521-seo1">
+    <link rel="stylesheet" href="admin.css?v=20260521-admin3">
   </head>
   <body>
     <main class="login-screen" data-login-screen>
@@ -53,58 +53,129 @@
 
     <div class="app-shell" data-admin-shell hidden>
       <aside class="sidebar">
-        <a class="brand" href="/">
+        <a class="brand" href="/" aria-label="MO-DJIB Consulting">
           <img data-admin-logo src="images/1697909151559.jpg" alt="">
-          <span>MO-DJIB Admin</span>
+          <span>
+            <strong>MO-DJIB</strong>
+            <small>Admin control</small>
+          </span>
         </a>
         <nav class="tabs" data-tabs>
-          <button class="active" type="button" data-tab="overview">Apercu</button>
-          <button type="button" data-tab="analytics">Analytics</button>
-          <button type="button" data-tab="content">Contenu</button>
-          <button type="button" data-tab="media">Images</button>
-          <button type="button" data-tab="gallery">Galerie</button>
-          <button type="button" data-tab="services">Services</button>
-          <button type="button" data-tab="pricing">Tarifs</button>
-          <button type="button" data-tab="blog">Blog</button>
-          <button type="button" data-tab="companies">Societes</button>
-          <button type="button" data-tab="documents">Documents</button>
-          <button type="button" data-tab="security">Securite</button>
+          <button class="active" type="button" data-tab="overview"><span class="nav-mark">D</span>Dashboard</button>
+          <button type="button" data-tab="analytics"><span class="nav-mark">A</span>Analytics</button>
+          <button type="button" data-tab="content"><span class="nav-mark">C</span>Contenu</button>
+          <button type="button" data-tab="media"><span class="nav-mark">M</span>Medias</button>
+          <button type="button" data-tab="gallery"><span class="nav-mark">G</span>Galerie</button>
+          <button type="button" data-tab="services"><span class="nav-mark">S</span>Services</button>
+          <button type="button" data-tab="pricing"><span class="nav-mark">P</span>Tarifs</button>
+          <button type="button" data-tab="blog"><span class="nav-mark">B</span>Blog</button>
+          <button type="button" data-tab="companies"><span class="nav-mark">R</span>Societes</button>
+          <button type="button" data-tab="documents"><span class="nav-mark">F</span>Documents</button>
+          <button type="button" data-tab="security"><span class="nav-mark">X</span>Securite</button>
         </nav>
-        <button class="button secondary" type="button" data-logout>Deconnexion</button>
+        <div class="sidebar-card">
+          <strong>Site public</strong>
+          <span>HTTPS actif, admin separe, donnees protegees.</span>
+          <a href="/" target="_blank" rel="noreferrer">Ouvrir le site</a>
+        </div>
+        <button class="button sidebar-logout" type="button" data-logout>Deconnexion</button>
       </aside>
 
       <main class="workspace">
+        <header class="topbar">
+          <button class="menu-button" type="button" data-sidebar-toggle>Menu</button>
+          <label class="admin-search">
+            <span>Search</span>
+            <input data-admin-search type="search" placeholder="Rechercher dans l'onglet ouvert">
+          </label>
+          <div class="topbar-actions">
+            <button class="button topbar-button" type="button" data-open-assistant>Ask MO-DJIB</button>
+            <button class="button topbar-button" type="button" data-export-json>Backup</button>
+            <a class="button topbar-button" href="/" target="_blank" rel="noreferrer">Site</a>
+            <div class="user-chip" data-admin-user>
+              <span>AD</span>
+              <strong>Admin</strong>
+            </div>
+          </div>
+        </header>
+
         <header class="workspace-header">
           <div>
-            <p class="eyebrow">Tableau de bord</p>
-            <h1>Gestion MO-DJIB Consulting</h1>
+            <p class="eyebrow">Command center</p>
+            <h1>Dashboard</h1>
           </div>
-          <div class="header-actions">
-            <label class="admin-search">Recherche rapide
-              <input data-admin-search type="search" placeholder="Filtrer l'onglet ouvert">
-            </label>
-            <a class="button secondary" href="/" target="_blank" rel="noreferrer">Voir le site</a>
-          </div>
+          <div class="date-range" data-date-range>Chargement...</div>
         </header>
         <p class="global-status" data-global-status aria-live="polite"></p>
 
-        <section class="panel active" data-panel="overview">
-          <div class="dashboard-hero">
-            <div>
-              <p class="eyebrow">Centre de controle</p>
-              <h2>Un site modifiable en direct, protege et pret pour les clients.</h2>
-              <p>Surveille les contenus, publie une actualite, ajoute des medias ou protege un document sans quitter l'espace admin.</p>
-            </div>
-            <div class="dashboard-actions" data-quick-actions></div>
+        <section class="assistant-drawer" data-admin-assistant hidden>
+          <div class="assistant-card">
+            <header>
+              <div>
+                <p class="eyebrow">Assistant admin</p>
+                <h2>Pose une question sur le site</h2>
+              </div>
+              <button class="button secondary" type="button" data-close-assistant>Fermer</button>
+            </header>
+            <form data-assistant-form>
+              <label class="wide">Question
+                <input name="question" placeholder="Ex: quelles societes expirent bientot ?">
+              </label>
+              <button class="button primary" type="submit">Analyser</button>
+            </form>
+            <div class="assistant-answer" data-assistant-answer></div>
           </div>
-          <div class="stat-grid" data-stats></div>
+        </section>
+
+        <section class="panel active" data-panel="overview">
+          <div class="dashboard-toolbar">
+            <div>
+              <p class="eyebrow">Pilotage temps reel</p>
+              <h2>Vue generale MO-DJIB Consulting</h2>
+            </div>
+            <div class="toolbar-actions">
+              <button class="button secondary" type="button" data-refresh-dashboard>Actualiser</button>
+              <button class="button primary" type="button" data-go-tab="content">Modifier le site</button>
+            </div>
+          </div>
+
+          <div class="kpi-grid" data-command-kpis></div>
+
+          <div class="activity-board">
+            <div class="activity-heading">
+              <div>
+                <p class="section-label">Activite du site</p>
+                <h2>Operations, contenus et conversions</h2>
+              </div>
+              <div class="segmented">
+                <button type="button" class="active">Tout</button>
+                <button type="button" data-go-tab="companies">Societes</button>
+                <button type="button" data-go-tab="documents">Docs</button>
+              </div>
+            </div>
+            <div class="quick-strip" data-quick-actions></div>
+            <div class="activity-canvas" data-dashboard-activity></div>
+          </div>
+
           <div class="dashboard-grid">
             <div class="admin-card">
-              <h2>Etat du site</h2>
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Alertes</p>
+                  <h2>Priorites admin</h2>
+                </div>
+                <button class="button secondary" type="button" data-open-assistant>Analyser</button>
+              </div>
               <div class="status-grid" data-health-cards></div>
             </div>
             <div class="admin-card">
-              <h2>Dernieres donnees</h2>
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Performance</p>
+                  <h2>Pages et contenus a suivre</h2>
+                </div>
+                <button class="button secondary" type="button" data-go-tab="analytics">Voir analytics</button>
+              </div>
               <div class="summary-grid" data-summary></div>
             </div>
           </div>
@@ -143,7 +214,14 @@
 
         <section class="panel" data-panel="content">
           <div class="admin-card">
-            <h2>Contenu du site</h2>
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Edition live</p>
+                <h2>Contenu du site</h2>
+              </div>
+              <a class="button secondary" href="/" target="_blank" rel="noreferrer">Previsualiser</a>
+            </div>
+            <div class="content-checklist" data-content-checklist></div>
             <form class="grid-form" data-content-form></form>
           </div>
         </section>
@@ -392,7 +470,8 @@
               </form>
             </div>
             <div class="admin-card">
-              <h2>Sauvegarde et activite</h2>
+              <h2>Sauvegarde, controles et activite</h2>
+              <div class="security-score" data-security-score></div>
               <div class="security-actions">
                 <button class="button secondary" type="button" data-export-json>Exporter la base en JSON</button>
                 <button class="button secondary" type="button" data-refresh-audit>Actualiser le journal</button>
@@ -404,6 +483,6 @@
       </main>
     </div>
 
-    <script src="admin.js?v=20260521-seo1" defer></script>
+    <script src="admin.js?v=20260521-admin3" defer></script>
   </body>
 </html>
