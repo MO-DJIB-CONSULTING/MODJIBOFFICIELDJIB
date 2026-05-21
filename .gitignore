@@ -7,4 +7,5 @@ npm-debug.log*
 # Runtime data - keep private and back it up separately in production.
 data/
 backups/
-
+private-data/
+ftp-deploy/

@@ -102,3 +102,15 @@ Depuis l'admin, onglet `Securite`, vous pouvez aussi exporter un JSON de la base
 Ne pas deployer ce projet sur un hebergement uniquement statique, car l'admin, la base, les documents proteges et les uploads ne fonctionneront pas.
 
 Si vous utilisez une plateforme cloud type Render/Railway, il faut activer un disque/volume persistant et verifier que `data/` et `images/admin-uploads/` ne disparaissent pas a chaque redeploiement.
+
+## Option AwardSpace / FTP PHP
+
+AwardSpace est un hebergement PHP/MySQL. Pour ce type de serveur, utiliser:
+
+```powershell
+npm run build-awardspace
+```
+
+Puis envoyer le contenu de `ftp-deploy/` dans le dossier web. Cette version utilise `api/index.php`, `.htaccess` et `private-data/database.json` afin de garder l'admin, la galerie, les societes et les documents proteges sans Node.js.
+
+Verifier dans le FTP Manager que le compte FTP/SFTP pointe vers un dossier web avec droits d'ecriture. Si la racine apparait en `0555` ou refuse chaque upload, le compte est en lecture seule ou n'est pas associe au bon dossier de domaine.

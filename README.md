@@ -50,3 +50,13 @@ Utiliser l'onglet `Securite` dans l'espace admin. En production, gardez `SYNC_AD
 La base se cree dans `data/mo-djibconsulting.sqlite`. Les documents uploades sont stockes dans `data/documents` et ne sont pas servis publiquement sans code.
 
 Le projet ne depend d'aucun CDN pour fonctionner localement: les pages, scripts, styles, base SQLite et documents sont dans ce dossier.
+
+## Deploiement AwardSpace / FTP
+
+Le projet garde le serveur Node.js pour le local/VPS, mais inclut aussi une couche PHP compatible hebergement FTP:
+
+```powershell
+npm run build-awardspace
+```
+
+Cette commande cree `ftp-deploy/` avec les fichiers publics, `api/index.php`, `.htaccess`, une base JSON exportee et les documents proteges dans `private-data/`. Envoyer le contenu de `ftp-deploy/` dans le dossier web AwardSpace.

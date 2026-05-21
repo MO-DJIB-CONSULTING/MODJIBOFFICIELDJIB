@@ -9,6 +9,7 @@
     "dev": "node --watch --no-warnings server.js",
     "reset-admin": "node --no-warnings scripts/reset-admin.js",
     "test-admin": "node --no-warnings scripts/test-admin-login.js",
+    "build-awardspace": "node --no-warnings scripts/build-awardspace-deploy.js",
     "prod": "node --no-warnings server.js"
   },
   "engines": {

@@ -1,0 +1,11 @@
+Options -Indexes
+RewriteEngine On
+
+RewriteRule ^api/?(.*)$ api/index.php?path=$1 [QSA,L]
+RewriteRule ^admin/?$ admin.html [L]
+RewriteRule ^galerie/?$ gallery.html [L]
+RewriteRule ^gallery/?$ gallery.html [L]
+
+<FilesMatch "^(\.env|package\.json|server\.js|.*\.sqlite.*|.*\.log)$">
+  Require all denied
+</FilesMatch>
