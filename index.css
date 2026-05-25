@@ -820,6 +820,49 @@ select:focus {
   font-weight: 900;
 }
 
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.footer-links a {
+  padding: 6px 9px;
+  border-radius: 8px;
+  color: var(--muted);
+  background: rgba(0, 127, 115, 0.08);
+}
+
+.footer-links a:hover {
+  color: var(--teal-dark);
+  background: var(--mint);
+}
+
+.trust-note {
+  display: grid;
+  gap: 8px;
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid rgba(0, 127, 115, 0.24);
+  border-radius: 8px;
+  color: var(--ink);
+  background: linear-gradient(135deg, rgba(230, 244, 239, 0.92), rgba(255, 255, 255, 0.92));
+}
+
+.trust-note strong {
+  color: var(--teal-dark);
+  font-size: 1.05rem;
+}
+
+.trust-note p {
+  max-width: 920px;
+  margin: 0;
+  color: var(--muted);
+}
+
 .empty-state {
   padding: 22px;
   border: 1px dashed var(--line);
@@ -1069,5 +1112,13 @@ select:focus {
 
   .chatbot-panel form {
     grid-template-columns: 1fr;
+  }
+
+  .site-footer {
+    flex-direction: column;
+  }
+
+  .footer-links {
+    justify-content: flex-start;
   }
 }

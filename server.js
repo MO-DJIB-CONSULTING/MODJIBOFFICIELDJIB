@@ -1027,6 +1027,8 @@ function serveStatic(req, res, pathname) {
   let target = pathname === "/" ? "/index.html" : pathname;
   if (target === "/admin") target = "/admin.html";
   if (target === "/galerie" || target === "/gallery") target = "/gallery.html";
+  if (target === "/mentions-legales") target = "/legal.html";
+  if (target === "/politique-confidentialite") target = "/privacy.html";
   if (/^\/(en|ar)\/?$/.test(target)) target = "/index.html";
   if (/^\/(en|ar)\/(galerie|gallery)\/?$/.test(target)) target = "/gallery.html";
 

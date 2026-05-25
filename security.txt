@@ -1,0 +1,5 @@
+Contact: mailto:modjibconsulting@gmail.com
+Preferred-Languages: fr, en
+Canonical: https://modjibconsulting.online/security.txt
+Policy: https://modjibconsulting.online/politique-confidentialite
+Expires: 2027-05-25T00:00:00Z

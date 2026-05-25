@@ -1103,6 +1103,13 @@ body {
   gap: 18px;
   align-items: flex-end;
   margin-bottom: 18px;
+  padding: 18px;
+  border: 1px solid #dfe7f3;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(245, 249, 255, 0.96)),
+    radial-gradient(circle at top right, rgba(0, 133, 111, 0.16), transparent 32%);
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.06);
 }
 
 .dashboard-toolbar h2 {
@@ -1130,9 +1137,26 @@ body {
   gap: 10px;
   padding: 16px;
   border: 1px solid var(--line);
+  border-top: 4px solid var(--blue);
   border-radius: 8px;
   background: var(--white);
   box-shadow: 0 7px 20px rgba(16, 24, 40, 0.06);
+}
+
+.kpi-card.tone-traffic {
+  border-top-color: #155dfc;
+}
+
+.kpi-card.tone-certificates {
+  border-top-color: #d6a13b;
+}
+
+.kpi-card.tone-documents {
+  border-top-color: #00856f;
+}
+
+.kpi-card.tone-quality {
+  border-top-color: #dc4b2f;
 }
 
 .kpi-card header {
@@ -1174,15 +1198,18 @@ body {
 }
 
 .activity-board {
-  min-height: 410px;
+  min-height: 420px;
   display: grid;
   align-content: start;
   gap: 18px;
   margin-bottom: 20px;
-  padding: 16px;
-  border: 1px dashed #9ac2ff;
+  padding: 18px;
+  border: 1px solid #dfe7f3;
   border-radius: 8px;
-  background: #edf6ff;
+  background:
+    linear-gradient(180deg, #ffffff, #f6f9fd),
+    radial-gradient(circle at top left, rgba(21, 93, 252, 0.1), transparent 30%);
+  box-shadow: 0 8px 26px rgba(16, 24, 40, 0.06);
 }
 
 .activity-heading {
@@ -1240,19 +1267,20 @@ body {
 
 .activity-canvas {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
 .activity-card {
-  min-height: 132px;
+  min-height: 174px;
   display: grid;
   align-content: start;
   gap: 8px;
   padding: 14px;
-  border: 1px solid #d6e7ff;
+  border: 1px solid #dfe7f3;
+  border-top: 4px solid #b8c7da;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .activity-card strong {
@@ -1269,12 +1297,47 @@ body {
 .activity-card.accent {
   color: var(--white);
   border-color: transparent;
-  background: linear-gradient(135deg, var(--blue), #00856f);
+  background: linear-gradient(135deg, #082f6f, #00856f);
 }
 
 .activity-card.accent span,
 .activity-card.accent p {
   color: rgba(255, 255, 255, 0.82);
+}
+
+.activity-card .button {
+  align-self: end;
+  width: fit-content;
+  min-height: 34px;
+  margin-top: 4px;
+  padding: 7px 11px;
+  border-radius: 7px;
+}
+
+.activity-card.accent .button.secondary {
+  color: var(--white);
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.activity-card.tone-quality {
+  border-top-color: #dc4b2f;
+}
+
+.activity-card.tone-certificates {
+  border-top-color: #d6a13b;
+}
+
+.activity-card.tone-documents {
+  border-top-color: #00856f;
+}
+
+.activity-card.tone-media {
+  border-top-color: #7c3aed;
+}
+
+.activity-card.tone-services {
+  border-top-color: #0f766e;
 }
 
 .dashboard-grid {

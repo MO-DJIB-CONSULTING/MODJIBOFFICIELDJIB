@@ -4,6 +4,7 @@ Disallow: /api/admin
 Disallow: /private-data
 Disallow: /data
 Disallow: /ftp-deploy
+Allow: /security.txt
 Allow: /
 
 Host: https://modjibconsulting.online

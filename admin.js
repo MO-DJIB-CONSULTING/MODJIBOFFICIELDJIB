@@ -276,24 +276,28 @@ function renderStats() {
   if (kpiRoot) {
     const cards = [
       {
+        tone: "traffic",
         label: "Visiteurs",
         value: formatNumber(visitors),
         note: `${formatNumber(pageViews)} pages vues sur 30 jours`,
         trend: generatedTrend(Math.max(visitors, pageViews, 8))
       },
       {
+        tone: "certificates",
         label: "Societes referencees",
         value: formatNumber(state.companies.length),
         note: `${alerts.soon.length} a renouveler, ${alerts.expired.length} expiree(s)`,
         trend: generatedTrend(state.companies.length + alerts.soon.length + 4, 0.9)
       },
       {
+        tone: "documents",
         label: "Documents proteges",
         value: `${formatNumber(activeDocs)}/${formatNumber(state.documents.length)}`,
         note: `${formatBytes(mediaSize)} dans la mediatheque`,
         trend: generatedTrend(activeDocs + state.documents.length + 3, 0.85)
       },
       {
+        tone: "quality",
         label: "Qualite contenu",
         value: `${completion}%`,
         note: `${draftPosts + hiddenGallery} element(s) masque(s)`,
@@ -301,7 +305,7 @@ function renderStats() {
       }
     ];
     kpiRoot.innerHTML = cards.map((card) => `
-      <article class="kpi-card">
+      <article class="kpi-card tone-${escapeHtml(card.tone)}">
         <header><span>${escapeHtml(card.label)}</span><span>Live</span></header>
         <strong>${escapeHtml(card.value)}</strong>
         ${sparkline(card.trend)}
@@ -329,26 +333,45 @@ function renderStats() {
 
   const activityRoot = document.querySelector("[data-dashboard-activity]");
   if (activityRoot) {
+    const certWork = alerts.expired.length + alerts.soon.length;
+    const seoWork = completion >= 90 ? 0 : 1;
+    const mediaWork = state.gallery.filter((item) => item.status !== "published").length;
     activityRoot.innerHTML = `
       <article class="activity-card accent">
         <span>Trafic aujourd'hui</span>
         <strong>${formatNumber(state.analytics?.today?.visitors || 0)}</strong>
-        <p>${formatNumber(state.analytics?.today?.pageViews || 0)} pages vues</p>
+        <p>${formatNumber(state.analytics?.today?.pageViews || 0)} pages vues a surveiller.</p>
+        <button class="button secondary" type="button" data-go-tab="analytics">Analyser</button>
       </article>
-      <article class="activity-card">
-        <span>Articles publies</span>
-        <strong>${formatNumber(state.posts.length - draftPosts)}</strong>
-        <p>${formatNumber(draftPosts)} brouillon(s)</p>
+      <article class="activity-card tone-quality">
+        <span>Contenu & SEO</span>
+        <strong>${completion}%</strong>
+        <p>${seoWork ? "Completer les champs SEO manquants." : "Base SEO complete pour Google."}</p>
+        <button class="button secondary" type="button" data-go-tab="content">Optimiser</button>
       </article>
-      <article class="activity-card">
-        <span>Galerie active</span>
+      <article class="activity-card tone-certificates">
+        <span>Certificats</span>
+        <strong>${formatNumber(certWork)}</strong>
+        <p>${certWork ? "Action requise sur les societes proches expiration." : "Aucun renouvellement critique."}</p>
+        <button class="button secondary" type="button" data-go-tab="companies">Gerer</button>
+      </article>
+      <article class="activity-card tone-documents">
+        <span>Documents</span>
+        <strong>${formatNumber(activeDocs)}</strong>
+        <p>${formatNumber(state.documents.length)} document(s), codes d'acces separes.</p>
+        <button class="button secondary" type="button" data-go-tab="documents">Controler</button>
+      </article>
+      <article class="activity-card tone-media">
+        <span>Medias & galerie</span>
         <strong>${formatNumber(publishedGallery)}</strong>
-        <p>${formatNumber(hiddenGallery)} element(s) masque(s)</p>
+        <p>${formatNumber(mediaWork)} media(s) a publier ou verifier.</p>
+        <button class="button secondary" type="button" data-go-tab="gallery">Publier</button>
       </article>
-      <article class="activity-card">
-        <span>Services et offres</span>
+      <article class="activity-card tone-services">
+        <span>Offres commerciales</span>
         <strong>${formatNumber(state.services.length + state.pricing.length)}</strong>
-        <p>${formatNumber(state.services.length)} services, ${formatNumber(state.pricing.length)} tarifs</p>
+        <p>${formatNumber(state.services.length)} services et ${formatNumber(state.pricing.length)} offres.</p>
+        <button class="button secondary" type="button" data-go-tab="pricing">Ajuster</button>
       </article>
     `;
   }

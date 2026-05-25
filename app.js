@@ -40,7 +40,9 @@ const translations = {
       localCard2Title: "Supported sectors",
       localCard2Body: "Restaurants, hotels, caterers, institutions, food industries, professional kitchens and catering services.",
       localCard3Title: "Service area",
-      localCard3Body: "Djibouti City, Republic of Djibouti and organizations across the Horn of Africa."
+      localCard3Body: "Djibouti City, Republic of Djibouti and organizations across the Horn of Africa.",
+      trustNoticeTitle: "Official MO-DJIB Consulting website",
+      trustNoticeBody: "This website never asks for banking passwords or personal account credentials. Protected documents use only a document access code delivered by MO-DJIB Consulting."
     },
     content: {
       heroKicker: "HACCP, food hygiene, audit and certification",
@@ -84,7 +86,9 @@ const translations = {
       localCard2Title: "القطاعات المستفيدة",
       localCard2Body: "المطاعم، الفنادق، خدمات التموين، المؤسسات، الصناعات الغذائية والمطابخ المهنية.",
       localCard3Title: "منطقة الخدمة",
-      localCard3Body: "مدينة جيبوتي، جمهورية جيبوتي ومؤسسات القرن الأفريقي."
+      localCard3Body: "مدينة جيبوتي، جمهورية جيبوتي ومؤسسات القرن الأفريقي.",
+      trustNoticeTitle: "الموقع الرسمي لـ MO-DJIB Consulting",
+      trustNoticeBody: "هذا الموقع لا يطلب كلمات مرور بنكية أو بيانات حسابات شخصية. الوثائق المحمية تستخدم فقط رمز وصول خاصا بالوثيقة يتم تسليمه من MO-DJIB Consulting."
     },
     content: {
       heroKicker: "HACCP، النظافة الغذائية، التدقيق والاعتماد",
@@ -353,7 +357,7 @@ function renderDocuments(documents, lang = defaultLanguage) {
       <p>${escapeHtml(doc.original_filename)} - ${Math.max(1, Math.round((doc.size || 0) / 1024))} Ko</p>
       <form data-document-form="${doc.id}">
         <label for="doc-code-${doc.id}">${escapeHtml(labels[0])}</label>
-        <input id="doc-code-${doc.id}" name="code" type="password" placeholder="${escapeHtml(labels[1])}" required>
+        <input id="doc-code-${doc.id}" name="code" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" placeholder="${escapeHtml(labels[1])}" required>
         <button class="button primary" type="submit">${escapeHtml(labels[2])}</button>
         <p class="document-status" aria-live="polite"></p>
       </form>
